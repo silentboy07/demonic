@@ -7,7 +7,9 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.nddfeon.demonic.data.model.UserAccount
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,15 +28,25 @@ class FirebaseAuthRepository @Inject constructor(
     private val auth: FirebaseAuth
 ) : AuthRepository {
 
-    override val currentUser: UserAccount?
-        get() = auth.currentUser?.toUserAccount()
+    private val _customUser = MutableStateFlow<UserAccount?>(null)
 
-    override fun authStateFlow(): Flow<UserAccount?> = callbackFlow {
+    override val currentUser: UserAccount?
+        get() = _customUser.value ?: auth.currentUser?.toUserAccount()
+
+    private val firebaseAuthFlow: Flow<UserAccount?> = callbackFlow {
         val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
             trySend(firebaseAuth.currentUser?.toUserAccount())
         }
         auth.addAuthStateListener(listener)
+        trySend(auth.currentUser?.toUserAccount())
         awaitClose { auth.removeAuthStateListener(listener) }
+    }
+
+    override fun authStateFlow(): Flow<UserAccount?> = combine(
+        _customUser,
+        firebaseAuthFlow
+    ) { custom, fbUser ->
+        custom ?: fbUser
     }
 
     override suspend fun signInWithGoogleCredential(credential: AuthCredential): Result<UserAccount> {
@@ -42,6 +54,7 @@ class FirebaseAuthRepository @Inject constructor(
             val result = auth.signInWithCredential(credential).await()
             val user = result.user?.toUserAccount()
                 ?: throw IllegalStateException("Firebase user was null after sign in")
+            _customUser.value = null
             Result.success(user)
         } catch (e: Exception) {
             Result.failure(e)
@@ -64,6 +77,7 @@ class FirebaseAuthRepository @Inject constructor(
                 displayName = name,
                 photoUrl = photoUrl
             )
+            _customUser.value = account
             Result.success(account)
         } catch (e: Exception) {
             Result.failure(e)
@@ -71,7 +85,10 @@ class FirebaseAuthRepository @Inject constructor(
     }
 
     override suspend fun signOut() {
-        auth.signOut()
+        _customUser.value = null
+        try {
+            auth.signOut()
+        } catch (_: Exception) {}
     }
 }
 

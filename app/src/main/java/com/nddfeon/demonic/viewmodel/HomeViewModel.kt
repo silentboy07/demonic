@@ -34,13 +34,26 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    private fun getEffectiveUser(): UserAccount {
+        return currentUser.value ?: run {
+            val fallback = UserAccount(
+                uid = "guest_" + (System.currentTimeMillis() % 100000),
+                displayName = "Demon Guest"
+            )
+            viewModelScope.launch {
+                authRepository.signInWithCustomUser(fallback.uid, fallback.displayName, null)
+            }
+            fallback
+        }
+    }
+
     fun updateRoomCodeInput(input: String) {
         val filtered = input.uppercase().filter { it.isLetterOrDigit() }.take(6)
         _uiState.value = _uiState.value.copy(roomCodeInput = filtered, errorMessage = null)
     }
 
     fun createRoom(onRoomCreated: (String) -> Unit) {
-        val user = currentUser.value ?: return
+        val user = getEffectiveUser()
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreatingRoom = true, errorMessage = null)
             val result = roomRepository.createRoom(user)
@@ -57,7 +70,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun joinRoom(code: String, onRoomJoined: (String) -> Unit) {
-        val user = currentUser.value ?: return
+        val user = getEffectiveUser()
         val trimmed = code.trim().uppercase()
         if (trimmed.length != 6) {
             _uiState.value = _uiState.value.copy(errorMessage = "Room code must be 6 characters")

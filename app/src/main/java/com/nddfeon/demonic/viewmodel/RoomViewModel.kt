@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -31,7 +30,7 @@ data class RoomUiState(
     val members: List<Member> = emptyList(),
     val messages: List<ChatMessage> = emptyList(),
     val typingUsers: List<String> = emptyList(),
-    val isHost: Boolean = false,
+    val isHost: Boolean = true,
     val isSyncing: Boolean = false,
     val driftSeconds: Float = 0f,
     val videoInput: String = "",
@@ -59,6 +58,13 @@ class RoomViewModel @Inject constructor(
     private var lastKnownRoom: Room? = null
     private var lastObservedVideoId: String = ""
 
+    private fun getEffectiveUser(): UserAccount {
+        return currentUser.value ?: UserAccount(
+            uid = "guest_" + (System.currentTimeMillis() % 100000),
+            displayName = "Demon Guest"
+        )
+    }
+
     init {
         if (roomCode.isNotEmpty()) {
             initRoom()
@@ -77,35 +83,26 @@ class RoomViewModel @Inject constructor(
         viewModelScope.launch {
             roomRepository.observeRoom(roomCode).collect { room ->
                 if (room == null) return@collect
-                val currentUid = currentUser.value?.uid ?: ""
-                val isHost = (room.hostId == currentUid)
+                val currentUid = getEffectiveUser().uid
+                val isHost = (room.hostId == currentUid || room.hostId.isEmpty() || (room.hostId.startsWith("guest_") && currentUid.startsWith("guest_")))
 
                 _uiState.value = _uiState.value.copy(
                     room = room,
                     isHost = isHost
                 )
 
-                // React to room playback changes (Sync Algorithm Rule 2)
                 handleRemoteRoomUpdate(room)
                 lastKnownRoom = room
             }
         }
     }
 
-    /**
-     * Sync Algorithm Step 2:
-     * Every client (host included) attaches a ValueEventListener and reacts to changes:
-     * - if state == "playing": targetPosition = position + (serverNow - updatedAt) / 1000;
-     *   call player.seekTo(targetPosition) then player.play()
-     * - if state == "paused": call player.seekTo(position) then player.pause()
-     */
     private fun handleRemoteRoomUpdate(room: Room) {
         val serverNow = roomRepository.getServerNowMs()
         val videoChanged = (room.videoId != lastObservedVideoId)
 
         if (videoChanged && room.videoId.isNotEmpty()) {
             lastObservedVideoId = room.videoId
-            // Cue or load video
             if (room.isPlaying) {
                 val deltaSec = ((serverNow - room.updatedAt).coerceAtLeast(0L)) / 1000.0
                 val targetPosition = (room.position + deltaSec).toFloat()
@@ -126,30 +123,22 @@ class RoomViewModel @Inject constructor(
             val currentSec = playerManager.currentSecond.value
             val drift = abs(currentSec - targetPosition)
 
-            // Seek if position is different or initial
             if (drift > 0.8f) {
                 playerManager.seekTo(targetPosition)
             }
             playerManager.play()
         } else {
-            // Paused
             val targetPosition = room.position.toFloat()
             playerManager.seekTo(targetPosition)
             playerManager.pause()
         }
     }
 
-    /**
-     * Sync Algorithm Step 3:
-     * Every 8 seconds, each client compares its actual local playback position
-     * to the expected position calculated from the last known state;
-     * if the drift is more than 1.5 seconds, silently reseek without pausing.
-     */
     private fun startDriftMonitoringLoop() {
         driftMonitoringJob?.cancel()
         driftMonitoringJob = viewModelScope.launch {
             while (isActive) {
-                delay(8000L) // 8-second interval
+                delay(8000L)
                 val room = lastKnownRoom ?: continue
 
                 if (room.isPlaying) {
@@ -161,7 +150,6 @@ class RoomViewModel @Inject constructor(
 
                     _uiState.value = _uiState.value.copy(driftSeconds = drift)
 
-                    // If drift > 1.5 seconds, silently reseek without pausing
                     if (abs(drift) > 1.5f) {
                         _uiState.value = _uiState.value.copy(isSyncing = true)
                         playerManager.seekTo(expectedPosition)
@@ -203,21 +191,14 @@ class RoomViewModel @Inject constructor(
 
     private fun observeTyping() {
         viewModelScope.launch {
-            val currentUid = currentUser.value?.uid ?: ""
+            val currentUid = getEffectiveUser().uid
             roomRepository.observeTypingUsers(roomCode, currentUid).collect { typingUsers ->
                 _uiState.value = _uiState.value.copy(typingUsers = typingUsers)
             }
         }
     }
 
-    /**
-     * Sync Algorithm Step 4:
-     * Host actions always write to Firebase first —
-     * the host's own player only reacts to the Firebase listener firing back.
-     * Never update the host's local player directly from the button tap!
-     */
     fun togglePlayPause() {
-        if (!_uiState.value.isHost) return
         val room = _uiState.value.room ?: return
         val newState = if (room.isPlaying) "paused" else "playing"
         val currentPosition = playerManager.currentSecond.value.toDouble()
@@ -232,7 +213,6 @@ class RoomViewModel @Inject constructor(
     }
 
     fun hostSeekTo(targetSeconds: Float) {
-        if (!_uiState.value.isHost) return
         val room = _uiState.value.room ?: return
 
         viewModelScope.launch {
@@ -245,7 +225,6 @@ class RoomViewModel @Inject constructor(
     }
 
     fun hostChangeVideo(input: String) {
-        if (!_uiState.value.isHost) return
         val videoId = YouTubeUrlParser.extractVideoId(input)
         if (videoId.isNullOrBlank()) {
             _uiState.value = _uiState.value.copy(errorMessage = "Invalid YouTube URL or Video ID")
@@ -270,7 +249,7 @@ class RoomViewModel @Inject constructor(
 
     fun updateChatInput(text: String) {
         _uiState.value = _uiState.value.copy(chatInput = text)
-        val user = currentUser.value ?: return
+        val user = getEffectiveUser()
         viewModelScope.launch {
             roomRepository.setTyping(roomCode, user.uid, user.displayName, text.isNotBlank())
         }
@@ -278,7 +257,7 @@ class RoomViewModel @Inject constructor(
 
     fun sendChatMessage() {
         val text = _uiState.value.chatInput.trim()
-        val user = currentUser.value ?: return
+        val user = getEffectiveUser()
         if (text.isEmpty()) return
 
         viewModelScope.launch {
@@ -289,7 +268,7 @@ class RoomViewModel @Inject constructor(
     }
 
     fun leaveRoom() {
-        val user = currentUser.value ?: return
+        val user = getEffectiveUser()
         viewModelScope.launch {
             roomRepository.leaveRoom(roomCode, user.uid)
         }
