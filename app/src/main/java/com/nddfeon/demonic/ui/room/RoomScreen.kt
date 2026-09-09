@@ -361,7 +361,8 @@ fun RoomScreen(
                             YouTubePlayerView(ctx).apply {
                                 playerViewRef = this
                                 enableAutomaticInitialization = false
-                                val options = IFramePlayerOptions.Builder()
+                                enableBackgroundPlayback(true)
+                                val options = IFramePlayerOptions.Builder(ctx)
                                     .controls(1)
                                     .autoplay(1)
                                     .rel(0)
@@ -385,7 +386,7 @@ fun RoomScreen(
                                 }
 
                                 configureWebView(this)
-                                initialize(viewModel.playerManager.listener, options)
+                                initialize(viewModel.playerManager.listener, false, options)
                                 post { configureWebView(this) }
 
                                 // DEMONIC Multi-Layer Ad-Killer:
