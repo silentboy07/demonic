@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.data.repository
+package com.nddfeon.demonic.data.repository
 
 import com.google.firebase.database.ChildEventListener
 import com.google.firebase.database.DataSnapshot
@@ -407,7 +407,7 @@ class FirebaseRoomRepository @Inject constructor(
             val messagesRef = database.getReference("rooms").child(upperCode).child("messages")
             val listener = object : ChildEventListener {
                 override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                    val id = snapshot.key ?: ""
+                    val id = snapshot.child("id").getValue(String::class.java) ?: snapshot.key ?: ""
                     val senderId = snapshot.child("senderId").getValue(String::class.java) ?: ""
                     val senderName = snapshot.child("senderName").getValue(String::class.java) ?: "Unknown"
                     val senderPhotoUrl = snapshot.child("senderPhotoUrl").getValue(String::class.java) ?: ""
@@ -774,8 +774,9 @@ class FirebaseRoomRepository @Inject constructor(
         text: String
     ): Result<Unit> {
         val upperCode = roomCode.trim().uppercase()
+        val msgId = "msg_" + System.currentTimeMillis() + "_" + (1000..9999).random()
         val msg = ChatMessage(
-            id = "msg_" + System.currentTimeMillis(),
+            id = msgId,
             senderId = user.uid,
             senderName = user.displayName,
             senderPhotoUrl = user.photoUrl ?: "",
@@ -787,15 +788,16 @@ class FirebaseRoomRepository @Inject constructor(
         scope.launch {
             try {
                 val messagesRef = database.getReference("rooms").child(upperCode).child("messages")
-                val newMsgRef = messagesRef.push()
+                val msgRef = messagesRef.child(msgId)
                 val msgData = hashMapOf<String, Any>(
+                    "id" to msgId,
                     "senderId" to user.uid,
                     "senderName" to user.displayName,
                     "senderPhotoUrl" to (user.photoUrl ?: ""),
                     "text" to text.trim(),
                     "sentAt" to ServerValue.TIMESTAMP
                 )
-                newMsgRef.setValue(msgData).await()
+                msgRef.setValue(msgData).await()
             } catch (_: Exception) {}
         }
 

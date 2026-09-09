@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -116,6 +117,21 @@ fun RoomScreen(
     var showSearchDialog by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var playerViewRef by remember { mutableStateOf<YouTubePlayerView?>(null) }
+
+    DisposableEffect(lifecycleOwner, playerViewRef) {
+        val playerView = playerViewRef
+        if (playerView != null) {
+            lifecycleOwner.lifecycle.addObserver(playerView)
+        }
+        onDispose {
+            if (playerView != null) {
+                lifecycleOwner.lifecycle.removeObserver(playerView)
+            }
+        }
+    }
+
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -143,12 +159,16 @@ fun RoomScreen(
             .fillMaxSize()
             .background(DemonicBackground)
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
             // Header Navigation Bar (Row 1: Clean, Never Overflows)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -325,6 +345,8 @@ fun RoomScreen(
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
+                val hasVideo = !uiState.room?.videoId.isNullOrEmpty()
+
                 // Persistent YouTubePlayerView (keeps WebView alive and playing in both modes)
                 Box(
                     modifier = Modifier
@@ -332,16 +354,16 @@ fun RoomScreen(
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.Black)
                         .border(1.dp, DemonicSurfaceVariant, RoundedCornerShape(16.dp))
-                        .alpha(if (showPlayerVideo) 1f else 0.001f)
+                        .alpha(if (showPlayerVideo && hasVideo) 1f else 0.001f)
                 ) {
                     AndroidView(
                         factory = { ctx ->
                             YouTubePlayerView(ctx).apply {
+                                playerViewRef = this
                                 enableAutomaticInitialization = false
                                 val options = IFramePlayerOptions.Builder()
                                     .controls(1)
                                     .autoplay(1)
-                                    .origin("https://www.youtube.com")
                                     .rel(0)
                                     .ivLoadPolicy(3)
                                     .ccLoadPolicy(0)
@@ -414,6 +436,15 @@ fun RoomScreen(
 
                                 postDelayed({ injectAdKiller() }, 1000)
                                 postDelayed({ injectAdKiller() }, 3000)
+                                postDelayed({ injectAdKiller() }, 6000)
+                            }
+                        },
+                        update = { _ ->
+                            val currentRoomVideoId = uiState.room?.videoId ?: ""
+                            if (currentRoomVideoId.isNotEmpty() && currentRoomVideoId != viewModel.playerManager.activeVideoId.value) {
+                                val isPlaying = uiState.room?.isPlaying ?: false
+                                val pos = (uiState.room?.position ?: 0.0).toFloat()
+                                viewModel.playerManager.loadOrCueVideo(currentRoomVideoId, pos, autoPlay = isPlaying)
                             }
                         },
                         modifier = Modifier.fillMaxSize()
@@ -421,12 +452,64 @@ fun RoomScreen(
                 }
 
                 // Vinyl Disc View Overlay
-                if (!showPlayerVideo) {
+                if (hasVideo && !showPlayerVideo) {
                     VinylDisc(
                         videoId = uiState.room?.videoId ?: "",
                         isPlaying = uiState.room?.isPlaying ?: false,
                         size = 180.dp
                     )
+                }
+
+                // Empty Track Placeholder (When no song is loaded in room)
+                if (!hasVideo) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(DemonicSurface, Color(0xFF0F0B15))
+                                )
+                            )
+                            .border(1.dp, DemonicBorder, RoundedCornerShape(16.dp))
+                            .clickable { showSearchDialog = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(DemonicCrimson.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.GraphicEq,
+                                    contentDescription = null,
+                                    tint = DemonicCrimson,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "NO TRACK PLAYING",
+                                color = DemonicTextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (uiState.canControlPlayback) "Tap here or search icon to play music" else "Waiting for host to pick a track...",
+                                color = DemonicTextMuted,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
                 }
             }
 
@@ -435,7 +518,8 @@ fun RoomScreen(
                 var isDraggingSlider by remember { mutableStateOf(false) }
                 var sliderPosition by remember { mutableFloatStateOf(0f) }
                 val displayPosition = if (isDraggingSlider) sliderPosition else currentSecond
-                val safeDuration = if (duration > 0f) duration else 100f
+                val hasDuration = duration > 0f
+                val safeDuration = if (hasDuration) duration else 1f
 
                 Column(
                     modifier = Modifier
@@ -443,20 +527,28 @@ fun RoomScreen(
                         .padding(horizontal = 16.dp, vertical = 2.dp)
                 ) {
                     Slider(
-                        value = displayPosition.coerceIn(0f, safeDuration),
+                        value = if (hasDuration) displayPosition.coerceIn(0f, safeDuration) else 0f,
                         onValueChange = {
-                            isDraggingSlider = true
-                            sliderPosition = it
+                            if (hasDuration) {
+                                isDraggingSlider = true
+                                sliderPosition = it
+                            }
                         },
                         onValueChangeFinished = {
-                            isDraggingSlider = false
-                            viewModel.hostSeekTo(sliderPosition)
+                            if (hasDuration) {
+                                isDraggingSlider = false
+                                viewModel.hostSeekTo(sliderPosition)
+                            }
                         },
+                        enabled = hasDuration,
                         valueRange = 0f..safeDuration,
                         colors = SliderDefaults.colors(
-                            thumbColor = DemonicCrimson,
+                            thumbColor = if (hasDuration) DemonicCrimson else Color.Transparent,
                             activeTrackColor = DemonicCrimson,
-                            inactiveTrackColor = Color(0xFF2B2238)
+                            inactiveTrackColor = Color(0xFF2B2238),
+                            disabledThumbColor = Color.Transparent,
+                            disabledActiveTrackColor = DemonicSurfaceVariant,
+                            disabledInactiveTrackColor = Color(0xFF2B2238)
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -467,21 +559,24 @@ fun RoomScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "${formatSeconds(displayPosition)} / ${formatSeconds(safeDuration)}",
+                            text = "${formatSeconds(displayPosition)} / ${if (hasDuration) formatSeconds(duration) else "--:--"}",
                             color = DemonicTextMuted,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
                         )
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                viewModel.hostSeekTo((currentSecond - 10f).coerceAtLeast(0f))
-                            }) {
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    viewModel.hostSeekTo((currentSecond - 10f).coerceAtLeast(0f))
+                                },
+                                enabled = hasDuration
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.FastRewind,
                                     contentDescription = "Rewind 10s",
-                                    tint = DemonicTextPrimary
+                                    tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
                                 )
                             }
 
@@ -514,14 +609,17 @@ fun RoomScreen(
 
                             Spacer(modifier = Modifier.width(6.dp))
 
-                            IconButton(onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                viewModel.hostSeekTo((currentSecond + 10f).coerceAtMost(safeDuration))
-                            }) {
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    viewModel.hostSeekTo((currentSecond + 10f).coerceAtMost(safeDuration))
+                                },
+                                enabled = hasDuration
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.FastForward,
                                     contentDescription = "Forward 10s",
-                                    tint = DemonicTextPrimary
+                                    tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
                                 )
                             }
                         }
@@ -540,7 +638,7 @@ fun RoomScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "🎧 Playback controlled by Host & DJ • ${formatSeconds(currentSecond)} / ${formatSeconds(duration)}",
+                        text = "🎧 Playback controlled by Host & DJ • ${formatSeconds(currentSecond)} / ${if (duration > 0f) formatSeconds(duration) else "--:--"}",
                         color = DemonicTextMuted,
                         fontSize = 11.sp
                     )

@@ -254,7 +254,13 @@ class RoomViewModel @Inject constructor(
         viewModelScope.launch {
             roomRepository.observeMessages(roomCode).collect { message ->
                 val current = _uiState.value.messages
-                if (current.none { it.id == message.id }) {
+                val isDuplicate = current.any { existing ->
+                    existing.id == message.id ||
+                    (existing.senderId == message.senderId &&
+                     existing.text == message.text &&
+                     kotlin.math.abs(existing.sentAt - message.sentAt) < 4000L)
+                }
+                if (!isDuplicate) {
                     _uiState.value = _uiState.value.copy(messages = current + message)
                 }
             }

@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.ui.theme
+package com.nddfeon.demonic.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
