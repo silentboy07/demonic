@@ -4,13 +4,16 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nddfeon.demonic.data.model.ChatMessage
+import com.nddfeon.demonic.data.model.LiveReaction
 import com.nddfeon.demonic.data.model.Member
+import com.nddfeon.demonic.data.model.QueueItem
 import com.nddfeon.demonic.data.model.Room
 import com.nddfeon.demonic.data.model.UserAccount
 import com.nddfeon.demonic.data.repository.AuthRepository
 import com.nddfeon.demonic.data.repository.RoomRepository
 import com.nddfeon.demonic.player.YouTubePlayerManager
 import com.nddfeon.demonic.player.YouTubeUrlParser
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -30,7 +33,11 @@ data class RoomUiState(
     val members: List<Member> = emptyList(),
     val messages: List<ChatMessage> = emptyList(),
     val typingUsers: List<String> = emptyList(),
+    val queue: List<QueueItem> = emptyList(),
+    val activeReactions: List<LiveReaction> = emptyList(),
     val isHost: Boolean = true,
+    val isDj: Boolean = false,
+    val canControlPlayback: Boolean = true,
     val isSyncing: Boolean = false,
     val driftSeconds: Float = 0f,
     val videoInput: String = "",
@@ -76,6 +83,9 @@ class RoomViewModel @Inject constructor(
         observeMembers()
         observeChatMessages()
         observeTyping()
+        observeQueue()
+        observeReactions()
+        observePlayerStateForAutoNext()
         startDriftMonitoringLoop()
     }
 
@@ -85,10 +95,14 @@ class RoomViewModel @Inject constructor(
                 if (room == null) return@collect
                 val currentUid = getEffectiveUser().uid
                 val isHost = (room.hostId == currentUid || room.hostId.isEmpty() || (room.hostId.startsWith("guest_") && currentUid.startsWith("guest_")))
+                val isDj = (room.djId == currentUid)
+                val canControl = isHost || isDj || room.canControlPlayback(currentUid)
 
                 _uiState.value = _uiState.value.copy(
                     room = room,
-                    isHost = isHost
+                    isHost = isHost,
+                    isDj = isDj,
+                    canControlPlayback = canControl
                 )
 
                 handleRemoteRoomUpdate(room)
@@ -96,22 +110,19 @@ class RoomViewModel @Inject constructor(
             }
         }
     }
-
     private fun handleRemoteRoomUpdate(room: Room) {
         val serverNow = roomRepository.getServerNowMs()
         val videoChanged = (room.videoId != lastObservedVideoId)
 
         if (videoChanged && room.videoId.isNotEmpty()) {
             lastObservedVideoId = room.videoId
+            val deltaSec = if (room.isPlaying) ((serverNow - room.updatedAt).coerceAtLeast(0L)) / 1000.0 else 0.0
+            val targetPosition = (room.position + deltaSec).toFloat()
+
+            playerManager.loadOrCueVideo(room.videoId, targetPosition, autoPlay = room.isPlaying)
             if (room.isPlaying) {
-                val deltaSec = ((serverNow - room.updatedAt).coerceAtLeast(0L)) / 1000.0
-                val targetPosition = (room.position + deltaSec).toFloat()
-                playerManager.loadOrCueVideo(room.videoId, targetPosition, autoPlay = true)
-                playerManager.seekTo(targetPosition)
                 playerManager.play()
             } else {
-                playerManager.loadOrCueVideo(room.videoId, room.position.toFloat(), autoPlay = false)
-                playerManager.seekTo(room.position.toFloat())
                 playerManager.pause()
             }
             return
@@ -123,7 +134,7 @@ class RoomViewModel @Inject constructor(
             val currentSec = playerManager.currentSecond.value
             val drift = abs(currentSec - targetPosition)
 
-            if (drift > 0.8f) {
+            if (drift > 1.2f) {
                 playerManager.seekTo(targetPosition)
             }
             playerManager.play()
@@ -169,6 +180,26 @@ class RoomViewModel @Inject constructor(
         }
     }
 
+    private fun observePlayerStateForAutoNext() {
+        viewModelScope.launch {
+            playerManager.playerState.collect { state ->
+                if (state == PlayerConstants.PlayerState.ENDED) {
+                    if (_uiState.value.canControlPlayback) {
+                        autoPlayNextTrack()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun autoPlayNextTrack() {
+        val currentQueue = _uiState.value.queue
+        if (currentQueue.isNotEmpty()) {
+            val nextTrack = currentQueue.first()
+            playQueueItem(nextTrack)
+        }
+    }
+
     private fun observeMembers() {
         viewModelScope.launch {
             val hostId = _uiState.value.room?.hostId ?: ""
@@ -198,10 +229,33 @@ class RoomViewModel @Inject constructor(
         }
     }
 
+    private fun observeQueue() {
+        viewModelScope.launch {
+            roomRepository.observeQueue(roomCode).collect { queue ->
+                _uiState.value = _uiState.value.copy(queue = queue)
+            }
+        }
+    }
+
+    private fun observeReactions() {
+        viewModelScope.launch {
+            roomRepository.observeReactions(roomCode).collect { reaction ->
+                val current = _uiState.value.activeReactions
+                _uiState.value = _uiState.value.copy(activeReactions = current + reaction)
+            }
+        }
+    }
     fun togglePlayPause() {
+        if (!_uiState.value.canControlPlayback) return
         val room = _uiState.value.room ?: return
         val newState = if (room.isPlaying) "paused" else "playing"
         val currentPosition = playerManager.currentSecond.value.toDouble()
+
+        if (newState == "playing") {
+            playerManager.play()
+        } else {
+            playerManager.pause()
+        }
 
         viewModelScope.launch {
             roomRepository.updatePlaybackState(
@@ -213,7 +267,9 @@ class RoomViewModel @Inject constructor(
     }
 
     fun hostSeekTo(targetSeconds: Float) {
+        if (!_uiState.value.canControlPlayback) return
         val room = _uiState.value.room ?: return
+        playerManager.seekTo(targetSeconds)
 
         viewModelScope.launch {
             roomRepository.updatePlaybackState(
@@ -225,11 +281,22 @@ class RoomViewModel @Inject constructor(
     }
 
     fun hostChangeVideo(input: String) {
+        if (!_uiState.value.canControlPlayback) return
         val videoId = YouTubeUrlParser.extractVideoId(input)
         if (videoId.isNullOrBlank()) {
             _uiState.value = _uiState.value.copy(errorMessage = "Invalid YouTube URL or Video ID")
             return
         }
+
+        playTrack(videoId, "YouTube Video: $videoId")
+        _uiState.value = _uiState.value.copy(videoInput = "", errorMessage = null)
+    }
+
+    fun playTrack(videoId: String, title: String) {
+        if (!_uiState.value.canControlPlayback) return
+        lastObservedVideoId = videoId
+        playerManager.loadOrCueVideo(videoId, 0f, autoPlay = true)
+        playerManager.play()
 
         viewModelScope.launch {
             roomRepository.updatePlaybackState(
@@ -237,9 +304,77 @@ class RoomViewModel @Inject constructor(
                 state = "playing",
                 positionSeconds = 0.0,
                 videoId = videoId,
-                videoTitle = "YouTube Video: $videoId"
+                videoTitle = title
             )
-            _uiState.value = _uiState.value.copy(videoInput = "", errorMessage = null)
+        }
+    }
+
+    fun playQueueItem(item: QueueItem) {
+        if (!_uiState.value.canControlPlayback) return
+        playTrack(item.videoId, item.title)
+        removeFromQueue(item.id)
+    }
+
+    fun addToQueue(videoId: String, title: String) {
+        val user = getEffectiveUser()
+        val item = QueueItem(
+            id = "q_" + System.currentTimeMillis() + "_" + (100..999).random(),
+            videoId = videoId,
+            title = title,
+            thumbnailUrl = "https://img.youtube.com/vi/$videoId/hqdefault.jpg",
+            addedByUid = user.uid,
+            addedByName = user.displayName,
+            addedAt = System.currentTimeMillis()
+        )
+        viewModelScope.launch {
+            roomRepository.addToQueue(roomCode, item)
+        }
+    }
+
+    fun removeFromQueue(itemId: String) {
+        if (!_uiState.value.canControlPlayback) return
+        viewModelScope.launch {
+            roomRepository.removeFromQueue(roomCode, itemId)
+        }
+    }
+
+    fun reorderQueue(fromIndex: Int, toIndex: Int) {
+        if (!_uiState.value.canControlPlayback) return
+        val current = _uiState.value.queue.toMutableList()
+        if (fromIndex in current.indices && toIndex in current.indices) {
+            val moved = current.removeAt(fromIndex)
+            current.add(toIndex, moved)
+            _uiState.value = _uiState.value.copy(queue = current)
+            viewModelScope.launch {
+                roomRepository.reorderQueue(roomCode, current)
+            }
+        }
+    }
+
+    fun upvoteQueueItem(itemId: String) {
+        val user = getEffectiveUser()
+        viewModelScope.launch {
+            roomRepository.upvoteQueueItem(roomCode, itemId, user.uid)
+        }
+    }
+
+    fun passTheAux(targetUid: String) {
+        if (!_uiState.value.isHost) return
+        viewModelScope.launch {
+            roomRepository.passTheAux(roomCode, targetUid)
+        }
+    }
+
+    fun sendReaction(emoji: String) {
+        val user = getEffectiveUser()
+        val reaction = LiveReaction(
+            id = "rx_" + System.currentTimeMillis() + "_" + (100..999).random(),
+            emoji = emoji,
+            senderName = user.displayName,
+            timestamp = System.currentTimeMillis()
+        )
+        viewModelScope.launch {
+            roomRepository.sendReaction(roomCode, reaction)
         }
     }
 

@@ -6,12 +6,25 @@ import com.google.firebase.database.IgnoreExtraProperties
 data class Room(
     val roomCode: String = "",
     val hostId: String = "",
+    val djId: String? = null,
     val videoId: String = "",
     val state: String = "paused", // "playing" | "paused"
     val position: Double = 0.0,   // seconds, position at the moment updatedAt was written
     val updatedAt: Long = 0L,     // Server timestamp in ms
-    val videoTitle: String = ""
+    val videoTitle: String = "",
+    val isPublic: Boolean = true,
+    val memberCount: Int = 1,
+    val queue: List<QueueItem> = emptyList()
 ) {
     val isPlaying: Boolean
         get() = state.equals("playing", ignoreCase = true)
+
+    fun canControlPlayback(uid: String): Boolean {
+        if (uid.isEmpty()) return true
+        if (hostId == uid) return true
+        if (djId != null && djId == uid) return true
+        // Fallback for local demo guest mode
+        if (hostId.startsWith("guest_") && uid.startsWith("guest_")) return true
+        return false
+    }
 }

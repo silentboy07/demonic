@@ -334,6 +334,75 @@ fun HomeScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Card 3: Discover Public Rooms
+        if (uiState.publicRooms.isNotEmpty()) {
+            Text(
+                text = "DISCOVER PUBLIC ROOMS",
+                color = DemonicCrimson,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.5.sp
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                uiState.publicRooms.forEach { room ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(DemonicSurface)
+                            .border(1.dp, DemonicSurfaceVariant, RoundedCornerShape(16.dp))
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "ROOM ${room.roomCode}",
+                                    color = DemonicTextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(DemonicCrimson.copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "${room.memberCount} listening",
+                                        color = DemonicCrimson,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = room.videoTitle.ifEmpty { "Synchronized Music Stream" },
+                                color = DemonicTextMuted,
+                                fontSize = 12.sp,
+                                maxLines = 1
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        DemonicButton(
+                            text = "Join",
+                            onClick = { onNavigateToRoom(room.roomCode) },
+                            modifier = Modifier.height(34.dp)
+                        )
+                    }
+                }
+            }
+        }
+
         uiState.errorMessage?.let { error ->
             Spacer(modifier = Modifier.height(18.dp))
             Text(

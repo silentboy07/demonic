@@ -1,11 +1,15 @@
 ﻿package com.nddfeon.demonic
 
+import android.app.PictureInPictureParams
+import android.os.Build
 import android.os.Bundle
+import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.SavedStateHandle
@@ -28,6 +32,25 @@ import com.nddfeon.demonic.viewmodel.LoginViewModel
 import com.nddfeon.demonic.viewmodel.RoomViewModel
 
 class MainActivity : ComponentActivity() {
+
+    private var activeInRoom = false
+
+    fun setActiveInRoom(active: Boolean) {
+        activeInRoom = active
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (activeInRoom && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .build()
+                enterPictureInPictureMode(params)
+            } catch (_: Exception) {}
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -114,8 +137,17 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
+
+                            DisposableEffect(Unit) {
+                                setActiveInRoom(true)
+                                onDispose {
+                                    setActiveInRoom(false)
+                                }
+                            }
+
                             RoomScreen(
                                 viewModel = roomViewModel,
+                                searchManager = app.youTubeSearchManager,
                                 onNavigateBack = {
                                     navController.popBackStack()
                                 }

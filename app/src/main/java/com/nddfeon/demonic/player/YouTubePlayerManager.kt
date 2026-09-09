@@ -29,14 +29,23 @@ class YouTubePlayerManager @Inject constructor() {
     private val _activeVideoId = MutableStateFlow("")
     val activeVideoId: StateFlow<String> = _activeVideoId.asStateFlow()
 
+    private var pendingVideoId: String = ""
+    private var pendingStartSeconds: Float = 0f
+    private var pendingAutoPlay: Boolean = false
+
     val listener = object : AbstractYouTubePlayerListener() {
         override fun onReady(youTubePlayer: YouTubePlayer) {
             youTubePlayerInstance = youTubePlayer
             _isReady.value = true
 
-            // If there was a pending video ID
-            if (_activeVideoId.value.isNotEmpty()) {
-                youTubePlayer.cueVideo(_activeVideoId.value, _currentSecond.value)
+            // If there was a pending video load/cue request
+            val targetId = pendingVideoId.ifEmpty { _activeVideoId.value }
+            if (targetId.isNotEmpty()) {
+                if (pendingAutoPlay) {
+                    youTubePlayer.loadVideo(targetId, pendingStartSeconds)
+                } else {
+                    youTubePlayer.cueVideo(targetId, pendingStartSeconds)
+                }
             }
         }
 
@@ -53,15 +62,21 @@ class YouTubePlayerManager @Inject constructor() {
         }
 
         override fun onError(youTubePlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
-            // Handle player errors gracefully
+            // Player errors handled gracefully
         }
     }
 
     fun play() {
-        youTubePlayerInstance?.play()
+        val player = youTubePlayerInstance
+        if (player != null) {
+            player.play()
+        } else {
+            pendingAutoPlay = true
+        }
     }
 
     fun pause() {
+        pendingAutoPlay = false
         youTubePlayerInstance?.pause()
     }
 
@@ -74,15 +89,25 @@ class YouTubePlayerManager @Inject constructor() {
     fun loadOrCueVideo(videoId: String, startSeconds: Float = 0f, autoPlay: Boolean = false) {
         _activeVideoId.value = videoId
         _currentSecond.value = startSeconds
-        if (autoPlay) {
-            youTubePlayerInstance?.loadVideo(videoId, startSeconds)
-        } else {
-            youTubePlayerInstance?.cueVideo(videoId, startSeconds)
+        pendingVideoId = videoId
+        pendingStartSeconds = startSeconds
+        pendingAutoPlay = autoPlay
+
+        val player = youTubePlayerInstance
+        if (player != null) {
+            if (autoPlay) {
+                player.loadVideo(videoId, startSeconds)
+            } else {
+                player.cueVideo(videoId, startSeconds)
+            }
         }
     }
 
     fun release() {
         youTubePlayerInstance = null
         _isReady.value = false
+        pendingVideoId = ""
+        pendingStartSeconds = 0f
+        pendingAutoPlay = false
     }
 }

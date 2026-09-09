@@ -2,6 +2,7 @@
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nddfeon.demonic.data.model.Room
 import com.nddfeon.demonic.data.model.UserAccount
 import com.nddfeon.demonic.data.repository.AuthRepository
 import com.nddfeon.demonic.data.repository.RoomRepository
@@ -19,6 +20,7 @@ data class HomeUiState(
     val isLoading: Boolean = false,
     val isCreatingRoom: Boolean = false,
     val isJoiningRoom: Boolean = false,
+    val publicRooms: List<Room> = emptyList(),
     val errorMessage: String? = null
 )
 
@@ -33,6 +35,18 @@ class HomeViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    init {
+        observePublicRooms()
+    }
+
+    private fun observePublicRooms() {
+        viewModelScope.launch {
+            roomRepository.observePublicRooms().collect { rooms ->
+                _uiState.value = _uiState.value.copy(publicRooms = rooms)
+            }
+        }
+    }
 
     private fun getEffectiveUser(): UserAccount {
         return currentUser.value ?: run {

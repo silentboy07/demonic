@@ -7,7 +7,9 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
 import com.nddfeon.demonic.data.model.ChatMessage
+import com.nddfeon.demonic.data.model.LiveReaction
 import com.nddfeon.demonic.data.model.Member
+import com.nddfeon.demonic.data.model.QueueItem
 import com.nddfeon.demonic.data.model.Room
 import com.nddfeon.demonic.data.model.UserAccount
 import kotlinx.coroutines.CoroutineScope
@@ -40,6 +42,9 @@ interface RoomRepository {
     fun observeMembers(roomCode: String, hostId: String): Flow<List<Member>>
     fun observeMessages(roomCode: String): Flow<ChatMessage>
     fun observeTypingUsers(roomCode: String, currentUid: String): Flow<List<String>>
+    fun observeQueue(roomCode: String): Flow<List<QueueItem>>
+    fun observeReactions(roomCode: String): Flow<LiveReaction>
+    fun observePublicRooms(): Flow<List<Room>>
 
     suspend fun updatePlaybackState(
         roomCode: String,
@@ -49,15 +54,15 @@ interface RoomRepository {
         videoTitle: String? = null
     ): Result<Unit>
 
-    suspend fun sendMessage(
-        roomCode: String,
-        user: UserAccount,
-        text: String
-    ): Result<Unit>
-
+    suspend fun passTheAux(roomCode: String, djUid: String): Result<Unit>
+    suspend fun addToQueue(roomCode: String, item: QueueItem): Result<Unit>
+    suspend fun removeFromQueue(roomCode: String, itemId: String): Result<Unit>
+    suspend fun reorderQueue(roomCode: String, newQueue: List<QueueItem>): Result<Unit>
+    suspend fun upvoteQueueItem(roomCode: String, itemId: String, uid: String): Result<Unit>
+    suspend fun sendReaction(roomCode: String, reaction: LiveReaction): Result<Unit>
+    suspend fun sendMessage(roomCode: String, user: UserAccount, text: String): Result<Unit>
     suspend fun setTyping(roomCode: String, uid: String, userName: String, isTyping: Boolean)
 }
-
 @Singleton
 class FirebaseRoomRepository @Inject constructor(
     private val database: FirebaseDatabase
@@ -70,11 +75,13 @@ class FirebaseRoomRepository @Inject constructor(
     private val _serverTimeOffsetMs = MutableStateFlow(0L)
     override val serverTimeOffsetMs: StateFlow<Long> = _serverTimeOffsetMs.asStateFlow()
 
-    // Resilient local state cache for instant testing / offline / mock fallback
     private val localRooms = ConcurrentHashMap<String, MutableStateFlow<Room?>>()
     private val localMembers = ConcurrentHashMap<String, MutableStateFlow<List<Member>>>()
     private val localMessages = ConcurrentHashMap<String, MutableSharedFlow<ChatMessage>>()
     private val localTyping = ConcurrentHashMap<String, MutableStateFlow<List<String>>>()
+    private val localQueues = ConcurrentHashMap<String, MutableStateFlow<List<QueueItem>>>()
+    private val localReactions = ConcurrentHashMap<String, MutableSharedFlow<LiveReaction>>()
+    private val localPublicRooms = MutableStateFlow<List<Room>>(emptyList())
 
     init {
         try {
@@ -100,22 +107,30 @@ class FirebaseRoomRepository @Inject constructor(
             .joinToString("")
     }
 
-    private fun getOrCreateLocalRoom(code: String): MutableStateFlow<Room?> {
-        return localRooms.getOrPut(code) { MutableStateFlow(null) }
-    }
+    private fun getOrCreateLocalRoom(code: String): MutableStateFlow<Room?> =
+        localRooms.getOrPut(code) { MutableStateFlow(null) }
 
-    private fun getOrCreateLocalMembers(code: String): MutableStateFlow<List<Member>> {
-        return localMembers.getOrPut(code) { MutableStateFlow(emptyList()) }
-    }
+    private fun getOrCreateLocalMembers(code: String): MutableStateFlow<List<Member>> =
+        localMembers.getOrPut(code) { MutableStateFlow(emptyList()) }
 
-    private fun getOrCreateLocalMessages(code: String): MutableSharedFlow<ChatMessage> {
-        return localMessages.getOrPut(code) { MutableSharedFlow(replay = 20) }
-    }
+    private fun getOrCreateLocalMessages(code: String): MutableSharedFlow<ChatMessage> =
+        localMessages.getOrPut(code) { MutableSharedFlow(replay = 20) }
 
-    private fun getOrCreateLocalTyping(code: String): MutableStateFlow<List<String>> {
-        return localTyping.getOrPut(code) { MutableStateFlow(emptyList()) }
-    }
+    private fun getOrCreateLocalTyping(code: String): MutableStateFlow<List<String>> =
+        localTyping.getOrPut(code) { MutableStateFlow(emptyList()) }
 
+    private fun getOrCreateLocalQueue(code: String): MutableStateFlow<List<QueueItem>> =
+        localQueues.getOrPut(code) { MutableStateFlow(emptyList()) }
+
+    private fun getOrCreateLocalReactions(code: String): MutableSharedFlow<LiveReaction> =
+        localReactions.getOrPut(code) { MutableSharedFlow(extraBufferCapacity = 50) }
+
+    private fun updatePublicRoomsList() {
+        val list = localRooms.values.mapNotNull { it.value }.filter { it.isPublic }.map { r ->
+            r.copy(memberCount = localMembers[r.roomCode]?.value?.size ?: 1)
+        }
+        localPublicRooms.value = list
+    }
     override suspend fun createRoom(user: UserAccount, initialVideoId: String): Result<String> {
         var roomCode = ""
         var attempts = 0
@@ -138,14 +153,16 @@ class FirebaseRoomRepository @Inject constructor(
         val room = Room(
             roomCode = roomCode,
             hostId = user.uid,
+            djId = null,
             videoId = initialVideoId,
             state = "paused",
             position = 0.0,
             updatedAt = now,
-            videoTitle = "Synchronized Playback"
+            videoTitle = "Synchronized Playback",
+            isPublic = true,
+            memberCount = 1
         )
 
-        // Set local state immediately for zero-lag UI response
         getOrCreateLocalRoom(roomCode).value = room
         getOrCreateLocalMembers(roomCode).value = listOf(
             Member(
@@ -156,8 +173,8 @@ class FirebaseRoomRepository @Inject constructor(
                 isHost = true
             )
         )
+        updatePublicRoomsList()
 
-        // Try syncing to Firebase in background with safety timeout
         scope.launch {
             try {
                 withTimeoutOrNull(3000L) {
@@ -168,7 +185,8 @@ class FirebaseRoomRepository @Inject constructor(
                         "state" to "paused",
                         "position" to 0.0,
                         "updatedAt" to ServerValue.TIMESTAMP,
-                        "videoTitle" to "Synchronized Playback"
+                        "videoTitle" to "Synchronized Playback",
+                        "isPublic" to true
                     )
                     roomsRef.setValue(roomData).await()
 
@@ -189,7 +207,6 @@ class FirebaseRoomRepository @Inject constructor(
         val upperCode = roomCode.trim().uppercase()
         val now = System.currentTimeMillis()
 
-        // 1. Check local cache first
         val localRoom = localRooms[upperCode]?.value
         if (localRoom != null) {
             val currentMembers = getOrCreateLocalMembers(upperCode).value
@@ -202,10 +219,10 @@ class FirebaseRoomRepository @Inject constructor(
                     isHost = (user.uid == localRoom.hostId)
                 )
             }
+            updatePublicRoomsList()
             return Result.success(localRoom)
         }
 
-        // 2. Try fetching from Firebase with timeout
         var remoteRoom: Room? = null
         try {
             val snapshot = withTimeoutOrNull(3000L) {
@@ -213,25 +230,28 @@ class FirebaseRoomRepository @Inject constructor(
             }
             if (snapshot != null && snapshot.exists()) {
                 val hostId = snapshot.child("hostId").getValue(String::class.java) ?: ""
+                val djId = snapshot.child("djId").getValue(String::class.java)
                 val videoId = snapshot.child("videoId").getValue(String::class.java) ?: "dQw4w9WgXcQ"
                 val state = snapshot.child("state").getValue(String::class.java) ?: "paused"
                 val position = snapshot.child("position").getValue(Double::class.java)
                     ?: (snapshot.child("position").getValue(Long::class.java)?.toDouble() ?: 0.0)
                 val updatedAt = snapshot.child("updatedAt").getValue(Long::class.java) ?: now
                 val videoTitle = snapshot.child("videoTitle").getValue(String::class.java) ?: ""
+                val isPublic = snapshot.child("isPublic").getValue(Boolean::class.java) ?: true
 
                 remoteRoom = Room(
                     roomCode = upperCode,
                     hostId = hostId,
+                    djId = djId,
                     videoId = videoId,
                     state = state,
                     position = position,
                     updatedAt = updatedAt,
-                    videoTitle = videoTitle
+                    videoTitle = videoTitle,
+                    isPublic = isPublic
                 )
                 getOrCreateLocalRoom(upperCode).value = remoteRoom
 
-                // Add member in background
                 scope.launch {
                     try {
                         val memberData = hashMapOf<String, Any>(
@@ -246,10 +266,10 @@ class FirebaseRoomRepository @Inject constructor(
         } catch (_: Exception) {}
 
         if (remoteRoom != null) {
+            updatePublicRoomsList()
             return Result.success(remoteRoom)
         }
 
-        // 3. If room code was entered in test/demo mode and not found, auto-create/join as listener room
         val fallbackRoom = Room(
             roomCode = upperCode,
             hostId = user.uid,
@@ -257,7 +277,8 @@ class FirebaseRoomRepository @Inject constructor(
             state = "paused",
             position = 0.0,
             updatedAt = now,
-            videoTitle = "Synchronized Playback"
+            videoTitle = "Synchronized Playback",
+            isPublic = true
         )
         getOrCreateLocalRoom(upperCode).value = fallbackRoom
         getOrCreateLocalMembers(upperCode).value = listOf(
@@ -269,6 +290,7 @@ class FirebaseRoomRepository @Inject constructor(
                 isHost = true
             )
         )
+        updatePublicRoomsList()
         return Result.success(fallbackRoom)
     }
 
@@ -276,6 +298,7 @@ class FirebaseRoomRepository @Inject constructor(
         val upperCode = roomCode.trim().uppercase()
         val currentMembers = localMembers[upperCode]?.value ?: emptyList()
         localMembers[upperCode]?.value = currentMembers.filter { it.uid != uid }
+        updatePublicRoomsList()
 
         scope.launch {
             try {
@@ -284,7 +307,6 @@ class FirebaseRoomRepository @Inject constructor(
             } catch (_: Exception) {}
         }
     }
-
     override fun observeRoom(roomCode: String): Flow<Room?> {
         val upperCode = roomCode.trim().uppercase()
         val localFlow = getOrCreateLocalRoom(upperCode)
@@ -295,21 +317,25 @@ class FirebaseRoomRepository @Inject constructor(
                 override fun onDataChange(snapshot: DataSnapshot) {
                     if (snapshot.exists()) {
                         val hostId = snapshot.child("hostId").getValue(String::class.java) ?: ""
+                        val djId = snapshot.child("djId").getValue(String::class.java)
                         val videoId = snapshot.child("videoId").getValue(String::class.java) ?: ""
                         val state = snapshot.child("state").getValue(String::class.java) ?: "paused"
                         val position = snapshot.child("position").getValue(Double::class.java)
                             ?: (snapshot.child("position").getValue(Long::class.java)?.toDouble() ?: 0.0)
                         val updatedAt = snapshot.child("updatedAt").getValue(Long::class.java) ?: 0L
                         val videoTitle = snapshot.child("videoTitle").getValue(String::class.java) ?: ""
+                        val isPublic = snapshot.child("isPublic").getValue(Boolean::class.java) ?: true
 
                         val room = Room(
                             roomCode = upperCode,
                             hostId = hostId,
+                            djId = djId,
                             videoId = videoId,
                             state = state,
                             position = position,
                             updatedAt = updatedAt,
-                            videoTitle = videoTitle
+                            videoTitle = videoTitle,
+                            isPublic = isPublic
                         )
                         localFlow.value = room
                         trySend(room)
@@ -447,6 +473,141 @@ class FirebaseRoomRepository @Inject constructor(
 
         return merge(localFlow, firebaseFlow)
     }
+    override fun observeQueue(roomCode: String): Flow<List<QueueItem>> {
+        val upperCode = roomCode.trim().uppercase()
+        val localFlow = getOrCreateLocalQueue(upperCode)
+
+        val firebaseFlow = callbackFlow {
+            val queueRef = database.getReference("rooms").child(upperCode).child("queue")
+            val listener = object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val list = mutableListOf<QueueItem>()
+                    for (child in snapshot.children) {
+                        val id = child.key ?: continue
+                        val videoId = child.child("videoId").getValue(String::class.java) ?: ""
+                        val title = child.child("title").getValue(String::class.java) ?: ""
+                        val thumbnailUrl = child.child("thumbnailUrl").getValue(String::class.java) ?: ""
+                        val addedByUid = child.child("addedByUid").getValue(String::class.java) ?: ""
+                        val addedByName = child.child("addedByName").getValue(String::class.java) ?: ""
+                        val addedAt = child.child("addedAt").getValue(Long::class.java) ?: 0L
+
+                        val upvotesMap = mutableMapOf<String, Boolean>()
+                        child.child("upvotes").children.forEach { upvoteChild ->
+                            upvoteChild.key?.let { upvotesMap[it] = true }
+                        }
+
+                        list.add(
+                            QueueItem(
+                                id = id,
+                                videoId = videoId,
+                                title = title,
+                                thumbnailUrl = thumbnailUrl,
+                                addedByUid = addedByUid,
+                                addedByName = addedByName,
+                                addedAt = addedAt,
+                                upvotes = upvotesMap
+                            )
+                        )
+                    }
+                    val sorted = list.sortedByDescending { it.upvotes.size }
+                    localFlow.value = sorted
+                    trySend(sorted)
+                }
+                override fun onCancelled(error: DatabaseError) {}
+            }
+            try {
+                queueRef.addValueEventListener(listener)
+            } catch (_: Exception) {}
+            awaitClose {
+                try { queueRef.removeEventListener(listener) } catch (_: Exception) {}
+            }
+        }
+
+        return merge(localFlow, firebaseFlow)
+    }
+
+    override fun observeReactions(roomCode: String): Flow<LiveReaction> {
+        val upperCode = roomCode.trim().uppercase()
+        val localFlow = getOrCreateLocalReactions(upperCode)
+
+        val firebaseFlow = callbackFlow {
+            val reactionsRef = database.getReference("rooms").child(upperCode).child("reactions")
+            val listener = object : ChildEventListener {
+                override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                    val id = snapshot.key ?: ""
+                    val emoji = snapshot.child("emoji").getValue(String::class.java) ?: "🔥"
+                    val senderName = snapshot.child("senderName").getValue(String::class.java) ?: ""
+                    val timestamp = snapshot.child("timestamp").getValue(Long::class.java) ?: System.currentTimeMillis()
+
+                    val reaction = LiveReaction(id, emoji, senderName, timestamp)
+                    trySend(reaction)
+                }
+                override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
+                override fun onChildRemoved(snapshot: DataSnapshot) {}
+                override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+                override fun onCancelled(error: DatabaseError) {}
+            }
+            try {
+                reactionsRef.addChildEventListener(listener)
+            } catch (_: Exception) {}
+            awaitClose {
+                try { reactionsRef.removeEventListener(listener) } catch (_: Exception) {}
+            }
+        }
+
+        return merge(localFlow, firebaseFlow)
+    }
+
+    override fun observePublicRooms(): Flow<List<Room>> {
+        val firebaseFlow = callbackFlow {
+            val roomsRef = database.getReference("rooms")
+            val listener = object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val list = mutableListOf<Room>()
+                    for (child in snapshot.children) {
+                        val code = child.key ?: continue
+                        val isPublic = child.child("isPublic").getValue(Boolean::class.java) ?: true
+                        if (!isPublic) continue
+
+                        val hostId = child.child("hostId").getValue(String::class.java) ?: ""
+                        val djId = child.child("djId").getValue(String::class.java)
+                        val videoId = child.child("videoId").getValue(String::class.java) ?: ""
+                        val state = child.child("state").getValue(String::class.java) ?: "paused"
+                        val position = child.child("position").getValue(Double::class.java) ?: 0.0
+                        val updatedAt = child.child("updatedAt").getValue(Long::class.java) ?: 0L
+                        val videoTitle = child.child("videoTitle").getValue(String::class.java) ?: "Demonic Room"
+                        val memberCount = child.child("members").childrenCount.toInt().coerceAtLeast(1)
+
+                        list.add(
+                            Room(
+                                roomCode = code,
+                                hostId = hostId,
+                                djId = djId,
+                                videoId = videoId,
+                                state = state,
+                                position = position,
+                                updatedAt = updatedAt,
+                                videoTitle = videoTitle,
+                                isPublic = true,
+                                memberCount = memberCount
+                            )
+                        )
+                    }
+                    val combined = (localPublicRooms.value + list).distinctBy { it.roomCode }
+                    trySend(combined)
+                }
+                override fun onCancelled(error: DatabaseError) {}
+            }
+            try {
+                roomsRef.addValueEventListener(listener)
+            } catch (_: Exception) {}
+            awaitClose {
+                try { roomsRef.removeEventListener(listener) } catch (_: Exception) {}
+            }
+        }
+
+        return merge(localPublicRooms, firebaseFlow)
+    }
 
     override suspend fun updatePlaybackState(
         roomCode: String,
@@ -471,8 +632,8 @@ class FirebaseRoomRepository @Inject constructor(
             videoId = videoId ?: "dQw4w9WgXcQ"
         )
         getOrCreateLocalRoom(upperCode).value = updated
+        updatePublicRoomsList()
 
-        // Push to Firebase asynchronously
         scope.launch {
             try {
                 val roomRef = database.getReference("rooms").child(upperCode)
@@ -484,6 +645,123 @@ class FirebaseRoomRepository @Inject constructor(
                 videoId?.let { updates["videoId"] = it }
                 videoTitle?.let { updates["videoTitle"] = it }
                 roomRef.updateChildren(updates).await()
+            } catch (_: Exception) {}
+        }
+
+        return Result.success(Unit)
+    }
+
+    override suspend fun passTheAux(roomCode: String, djUid: String): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        val current = localRooms[upperCode]?.value
+        if (current != null) {
+            getOrCreateLocalRoom(upperCode).value = current.copy(djId = djUid.ifEmpty { null })
+        }
+
+        scope.launch {
+            try {
+                val roomRef = database.getReference("rooms").child(upperCode)
+                if (djUid.isEmpty()) {
+                    roomRef.child("djId").removeValue().await()
+                } else {
+                    roomRef.child("djId").setValue(djUid).await()
+                }
+            } catch (_: Exception) {}
+        }
+
+        return Result.success(Unit)
+    }
+
+    override suspend fun addToQueue(roomCode: String, item: QueueItem): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        val queueFlow = getOrCreateLocalQueue(upperCode)
+        val current = queueFlow.value
+        queueFlow.value = current + item
+
+        scope.launch {
+            try {
+                val itemRef = database.getReference("rooms").child(upperCode).child("queue").child(item.id)
+                val data = hashMapOf<String, Any>(
+                    "videoId" to item.videoId,
+                    "title" to item.title,
+                    "thumbnailUrl" to item.thumbnailUrl,
+                    "addedByUid" to item.addedByUid,
+                    "addedByName" to item.addedByName,
+                    "addedAt" to ServerValue.TIMESTAMP
+                )
+                itemRef.setValue(data).await()
+            } catch (_: Exception) {}
+        }
+
+        return Result.success(Unit)
+    }
+
+    override suspend fun removeFromQueue(roomCode: String, itemId: String): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        val queueFlow = getOrCreateLocalQueue(upperCode)
+        queueFlow.value = queueFlow.value.filter { it.id != itemId }
+
+        scope.launch {
+            try {
+                database.getReference("rooms").child(upperCode).child("queue").child(itemId).removeValue().await()
+            } catch (_: Exception) {}
+        }
+
+        return Result.success(Unit)
+    }
+
+    override suspend fun reorderQueue(roomCode: String, newQueue: List<QueueItem>): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        getOrCreateLocalQueue(upperCode).value = newQueue
+        return Result.success(Unit)
+    }
+
+    override suspend fun upvoteQueueItem(roomCode: String, itemId: String, uid: String): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        val queueFlow = getOrCreateLocalQueue(upperCode)
+        val current = queueFlow.value.toMutableList()
+        val index = current.indexOfFirst { it.id == itemId }
+        if (index != -1) {
+            val item = current[index]
+            val upvotes = item.upvotes.toMutableMap()
+            if (upvotes.containsKey(uid)) {
+                upvotes.remove(uid)
+            } else {
+                upvotes[uid] = true
+            }
+            current[index] = item.copy(upvotes = upvotes)
+            queueFlow.value = current.sortedByDescending { it.upvotes.size }
+        }
+
+        scope.launch {
+            try {
+                val upvoteRef = database.getReference("rooms").child(upperCode).child("queue").child(itemId).child("upvotes").child(uid)
+                val snap = upvoteRef.get().await()
+                if (snap.exists()) {
+                    upvoteRef.removeValue().await()
+                } else {
+                    upvoteRef.setValue(true).await()
+                }
+            } catch (_: Exception) {}
+        }
+
+        return Result.success(Unit)
+    }
+
+    override suspend fun sendReaction(roomCode: String, reaction: LiveReaction): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        getOrCreateLocalReactions(upperCode).emit(reaction)
+
+        scope.launch {
+            try {
+                val reactionsRef = database.getReference("rooms").child(upperCode).child("reactions")
+                val newRef = reactionsRef.push()
+                val data = hashMapOf<String, Any>(
+                    "emoji" to reaction.emoji,
+                    "senderName" to reaction.senderName,
+                    "timestamp" to ServerValue.TIMESTAMP
+                )
+                newRef.setValue(data).await()
             } catch (_: Exception) {}
         }
 

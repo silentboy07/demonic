@@ -8,6 +8,7 @@ import com.nddfeon.demonic.data.repository.FirebaseAuthRepository
 import com.nddfeon.demonic.data.repository.FirebaseRoomRepository
 import com.nddfeon.demonic.data.repository.RoomRepository
 import com.nddfeon.demonic.player.YouTubePlayerManager
+import com.nddfeon.demonic.player.YouTubeSearchManager
 
 class DemonicApp : Application() {
 
@@ -16,6 +17,8 @@ class DemonicApp : Application() {
     lateinit var roomRepository: RoomRepository
         private set
     lateinit var youTubePlayerManager: YouTubePlayerManager
+        private set
+    lateinit var youTubeSearchManager: YouTubeSearchManager
         private set
 
     override fun onCreate() {
@@ -29,5 +32,6 @@ class DemonicApp : Application() {
         authRepository = FirebaseAuthRepository(auth)
         roomRepository = FirebaseRoomRepository(database)
         youTubePlayerManager = YouTubePlayerManager()
+        youTubeSearchManager = YouTubeSearchManager()
     }
 }
