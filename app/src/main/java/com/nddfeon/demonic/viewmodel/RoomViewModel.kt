@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.viewmodel
+package com.nddfeon.demonic.viewmodel
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -64,6 +64,8 @@ class RoomViewModel @Inject constructor(
     private var driftMonitoringJob: Job? = null
     private var lastKnownRoom: Room? = null
     private var lastObservedVideoId: String = ""
+    private var lastVideoLoadedTime: Long = 0L
+    private var lastDriftSeekTime: Long = 0L
 
     private fun getEffectiveUser(): UserAccount {
         return currentUser.value ?: UserAccount(
@@ -113,12 +115,16 @@ class RoomViewModel @Inject constructor(
     private fun handleRemoteRoomUpdate(room: Room) {
         val serverNow = roomRepository.getServerNowMs()
         val videoChanged = (room.videoId != lastObservedVideoId)
+        val currentUid = getEffectiveUser().uid
+        val isHost = (room.hostId == currentUid || room.hostId.isEmpty() || (room.hostId.startsWith("guest_") && currentUid.startsWith("guest_")))
 
         if (videoChanged && room.videoId.isNotEmpty()) {
             lastObservedVideoId = room.videoId
+            lastVideoLoadedTime = System.currentTimeMillis()
             val deltaSec = if (room.isPlaying) ((serverNow - room.updatedAt).coerceAtLeast(0L)) / 1000.0 else 0.0
-            val targetPosition = (room.position + deltaSec).toFloat()
+            val targetPosition = if (isHost) 0f else (room.position + deltaSec).toFloat()
 
+            android.util.Log.d("DemonicSync", "Loading new video: ${room.videoId} at position: $targetPosition (isHost=$isHost, isPlaying=${room.isPlaying})")
             playerManager.loadOrCueVideo(room.videoId, targetPosition, autoPlay = room.isPlaying)
             if (room.isPlaying) {
                 playerManager.play()
@@ -128,13 +134,33 @@ class RoomViewModel @Inject constructor(
             return
         }
 
+        // Host is the master player: never override host playback with client-calculated drift!
+        if (isHost) {
+            if (room.isPlaying && !playerManager.isPlaying() && !playerManager.isBuffering()) {
+                playerManager.play()
+            } else if (!room.isPlaying && playerManager.isPlaying()) {
+                playerManager.pause()
+            }
+            return
+        }
+
+        // For Listeners: Allow a 4-second initial buffer period before applying any drift seeks
+        val timeSinceLoad = System.currentTimeMillis() - lastVideoLoadedTime
+        if (timeSinceLoad < 4000L) {
+            if (room.isPlaying) playerManager.play() else playerManager.pause()
+            return
+        }
+
         if (room.isPlaying) {
             val deltaSec = ((serverNow - room.updatedAt).coerceAtLeast(0L)) / 1000.0
             val targetPosition = (room.position + deltaSec).toFloat()
             val currentSec = playerManager.currentSecond.value
             val drift = abs(currentSec - targetPosition)
 
-            if (drift > 1.2f) {
+            // Only seek if the player is actively playing and drift exceeds 2.5s
+            if (playerManager.isPlaying() && drift > 2.5f && (System.currentTimeMillis() - lastDriftSeekTime > 5000L)) {
+                lastDriftSeekTime = System.currentTimeMillis()
+                android.util.Log.d("DemonicSync", "Listener drift $drift > 2.5s, seeking to: $targetPosition")
                 playerManager.seekTo(targetPosition)
             }
             playerManager.play()
@@ -149,31 +175,46 @@ class RoomViewModel @Inject constructor(
         driftMonitoringJob?.cancel()
         driftMonitoringJob = viewModelScope.launch {
             while (isActive) {
-                delay(8000L)
+                delay(4000L)
                 val room = lastKnownRoom ?: continue
+                val currentUid = getEffectiveUser().uid
+                val isHost = (room.hostId == currentUid || room.hostId.isEmpty() || (room.hostId.startsWith("guest_") && currentUid.startsWith("guest_")))
 
-                if (room.isPlaying) {
-                    val serverNow = roomRepository.getServerNowMs()
-                    val deltaSec = ((serverNow - room.updatedAt).coerceAtLeast(0L)) / 1000.0
-                    val expectedPosition = (room.position + deltaSec).toFloat()
-                    val actualPosition = playerManager.currentSecond.value
-                    val drift = actualPosition - expectedPosition
-
-                    _uiState.value = _uiState.value.copy(driftSeconds = drift)
-
-                    if (abs(drift) > 1.5f) {
-                        _uiState.value = _uiState.value.copy(isSyncing = true)
-                        playerManager.seekTo(expectedPosition)
-                        delay(500L)
-                        _uiState.value = _uiState.value.copy(isSyncing = false)
+                if (isHost) {
+                    // Host Heartbeat: Every 4 seconds, report true player position so listeners stay lock-stepped
+                    if (room.isPlaying && playerManager.isPlaying()) {
+                        val currentPos = playerManager.currentSecond.value.toDouble()
+                        roomRepository.updatePlaybackState(
+                            roomCode = roomCode,
+                            state = "playing",
+                            positionSeconds = currentPos
+                        )
                     }
+                    _uiState.value = _uiState.value.copy(driftSeconds = 0f, isSyncing = false)
                 } else {
-                    val actualPosition = playerManager.currentSecond.value
-                    val drift = actualPosition - room.position.toFloat()
-                    _uiState.value = _uiState.value.copy(driftSeconds = drift)
+                    // Listener drift evaluation
+                    if (room.isPlaying) {
+                        val serverNow = roomRepository.getServerNowMs()
+                        val deltaSec = ((serverNow - room.updatedAt).coerceAtLeast(0L)) / 1000.0
+                        val expectedPosition = (room.position + deltaSec).toFloat()
+                        val actualPosition = playerManager.currentSecond.value
+                        val drift = actualPosition - expectedPosition
 
-                    if (abs(drift) > 1.0f) {
-                        playerManager.seekTo(room.position.toFloat())
+                        _uiState.value = _uiState.value.copy(driftSeconds = drift)
+
+                        val timeSinceLoad = System.currentTimeMillis() - lastVideoLoadedTime
+                        if (timeSinceLoad > 4000L && playerManager.isPlaying() && abs(drift) > 2.5f && (System.currentTimeMillis() - lastDriftSeekTime > 5000L)) {
+                            _uiState.value = _uiState.value.copy(isSyncing = true)
+                            lastDriftSeekTime = System.currentTimeMillis()
+                            android.util.Log.d("DemonicSync", "Drift correction loop: seeking listener to $expectedPosition (drift: $drift)")
+                            playerManager.seekTo(expectedPosition)
+                            delay(400L)
+                            _uiState.value = _uiState.value.copy(isSyncing = false)
+                        }
+                    } else {
+                        val actualPosition = playerManager.currentSecond.value
+                        val drift = actualPosition - room.position.toFloat()
+                        _uiState.value = _uiState.value.copy(driftSeconds = drift)
                     }
                 }
             }

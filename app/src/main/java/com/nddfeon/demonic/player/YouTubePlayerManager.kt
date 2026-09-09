@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.player
+package com.nddfeon.demonic.player
 
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
@@ -29,18 +29,26 @@ class YouTubePlayerManager @Inject constructor() {
     private val _activeVideoId = MutableStateFlow("")
     val activeVideoId: StateFlow<String> = _activeVideoId.asStateFlow()
 
+    private val _playbackError = MutableStateFlow<String?>(null)
+    val playbackError: StateFlow<String?> = _playbackError.asStateFlow()
+
     private var pendingVideoId: String = ""
     private var pendingStartSeconds: Float = 0f
     private var pendingAutoPlay: Boolean = false
 
+    fun isPlaying(): Boolean = _playerState.value == PlayerConstants.PlayerState.PLAYING
+    fun isBuffering(): Boolean = _playerState.value == PlayerConstants.PlayerState.BUFFERING
+
     val listener = object : AbstractYouTubePlayerListener() {
         override fun onReady(youTubePlayer: YouTubePlayer) {
+            android.util.Log.d("DemonicPlayer", "YouTubePlayer onReady received!")
             youTubePlayerInstance = youTubePlayer
             _isReady.value = true
 
             // If there was a pending video load/cue request
             val targetId = pendingVideoId.ifEmpty { _activeVideoId.value }
             if (targetId.isNotEmpty()) {
+                android.util.Log.d("DemonicPlayer", "onReady -> loading pending video: $targetId (autoPlay=$pendingAutoPlay, start=$pendingStartSeconds)")
                 if (pendingAutoPlay) {
                     youTubePlayer.loadVideo(targetId, pendingStartSeconds)
                 } else {
@@ -50,6 +58,7 @@ class YouTubePlayerManager @Inject constructor() {
         }
 
         override fun onStateChange(youTubePlayer: YouTubePlayer, state: PlayerConstants.PlayerState) {
+            android.util.Log.d("DemonicPlayer", "onStateChange: $state")
             _playerState.value = state
         }
 
@@ -62,7 +71,8 @@ class YouTubePlayerManager @Inject constructor() {
         }
 
         override fun onError(youTubePlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
-            // Player errors handled gracefully
+            android.util.Log.e("DemonicPlayer", "YouTube Player onError: $error")
+            _playbackError.value = "Playback error: $error"
         }
     }
 
@@ -95,11 +105,14 @@ class YouTubePlayerManager @Inject constructor() {
 
         val player = youTubePlayerInstance
         if (player != null) {
+            android.util.Log.d("DemonicPlayer", "loadOrCueVideo: $videoId, startSeconds=$startSeconds, autoPlay=$autoPlay")
             if (autoPlay) {
                 player.loadVideo(videoId, startSeconds)
             } else {
                 player.cueVideo(videoId, startSeconds)
             }
+        } else {
+            android.util.Log.d("DemonicPlayer", "loadOrCueVideo: Player instance is null, queued as pending: $videoId")
         }
     }
 

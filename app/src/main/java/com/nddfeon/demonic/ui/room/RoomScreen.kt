@@ -44,8 +44,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -87,6 +89,7 @@ import com.nddfeon.demonic.ui.theme.DemonicSurface
 import com.nddfeon.demonic.ui.theme.DemonicSurfaceVariant
 import com.nddfeon.demonic.ui.theme.DemonicTextMuted
 import com.nddfeon.demonic.ui.theme.DemonicTextPrimary
+import com.nddfeon.demonic.ui.theme.DemonicTextSecondary
 import com.nddfeon.demonic.ui.theme.DemonicViolet
 import com.nddfeon.demonic.ui.theme.DemonicWarningAmber
 import com.nddfeon.demonic.viewmodel.RoomViewModel
@@ -141,28 +144,34 @@ fun RoomScreen(
             .background(DemonicBackground)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header Top Bar
+            // Header Navigation Bar (Row 1: Clean, Never Overflows)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                        viewModel.leaveRoom()
-                        onNavigateBack()
-                    }) {
+                    IconButton(
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            viewModel.leaveRoom()
+                            onNavigateBack()
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Leave Room",
-                            tint = DemonicTextPrimary
+                            tint = DemonicTextPrimary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
-                    Column(modifier = Modifier.padding(start = 2.dp)) {
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Column {
                         Text(
                             text = "ROOM ${uiState.roomCode}",
                             color = DemonicCrimson,
@@ -187,50 +196,15 @@ fun RoomScreen(
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     SyncStatusBadge(
                         driftSeconds = uiState.driftSeconds,
                         isSyncing = uiState.isSyncing
                     )
 
-                    // Search Button
-                    IconButton(onClick = { showSearchDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search Song",
-                            tint = DemonicTextPrimary
-                        )
-                    }
-
-                    // Queue Button with Badge
-                    IconButton(onClick = { showQueueSheet = true }) {
-                        BadgedBox(
-                            badge = {
-                                if (uiState.queue.isNotEmpty()) {
-                                    Badge(containerColor = DemonicCrimson) {
-                                        Text("${uiState.queue.size}")
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                                contentDescription = "Playlist Queue",
-                                tint = if (uiState.queue.isNotEmpty()) DemonicCrimson else DemonicTextPrimary
-                            )
-                        }
-                    }
-
-                    // Toggle Video / Vinyl Disc Mode
-                    IconButton(onClick = { showPlayerVideo = !showPlayerVideo }) {
-                        Icon(
-                            imageVector = if (showPlayerVideo) Icons.Default.GraphicEq else Icons.Default.Videocam,
-                            contentDescription = "Toggle Video/Disc",
-                            tint = if (showPlayerVideo) DemonicViolet else DemonicCrimson
-                        )
-                    }
-
-                    // Share Button
                     IconButton(
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
@@ -243,22 +217,112 @@ fun RoomScreen(
                                 )
                             }
                             context.startActivity(Intent.createChooser(shareIntent, "Share Room Code"))
-                        }
+                        },
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Share",
-                            tint = DemonicTextPrimary
+                            tint = DemonicTextPrimary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
             }
+
+            // Quick Action Bar (Row 2: Search, Queue with badge, and Video/Disc toggle)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // In-App YouTube Search Pill Button (Opens Search Modal)
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DemonicSurface)
+                        .border(1.dp, DemonicBorder, RoundedCornerShape(10.dp))
+                        .clickable { showSearchDialog = true }
+                        .padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = DemonicTextSecondary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Search song / artist...",
+                        color = DemonicTextMuted,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Playlist / Up Next Queue Pill Button
+                Box(
+                    modifier = Modifier
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (uiState.queue.isNotEmpty()) DemonicCrimsonDark.copy(alpha = 0.5f) else DemonicSurface)
+                        .border(
+                            1.dp,
+                            if (uiState.queue.isNotEmpty()) DemonicCrimson else DemonicBorder,
+                            RoundedCornerShape(10.dp)
+                        )
+                        .clickable { showQueueSheet = true }
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                            contentDescription = "Queue",
+                            tint = if (uiState.queue.isNotEmpty()) DemonicCrimson else DemonicTextPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Queue (${uiState.queue.size})",
+                            color = if (uiState.queue.isNotEmpty()) DemonicCrimson else DemonicTextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Toggle Video / Vinyl Disc Mode
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DemonicSurface)
+                        .border(1.dp, DemonicBorder, RoundedCornerShape(10.dp))
+                        .clickable { showPlayerVideo = !showPlayerVideo },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (showPlayerVideo) Icons.Default.GraphicEq else Icons.Default.Videocam,
+                        contentDescription = "Toggle Video/Disc",
+                        tint = if (showPlayerVideo) DemonicViolet else DemonicCrimson,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
             // Visual Centerpiece: 16:9 YouTube Player or Vinyl Disc
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
                 // Persistent YouTubePlayerView (keeps WebView alive and playing in both modes)
@@ -276,50 +340,80 @@ fun RoomScreen(
                                 enableAutomaticInitialization = false
                                 val options = IFramePlayerOptions.Builder()
                                     .controls(1)
+                                    .autoplay(1)
+                                    .origin("https://www.youtube.com")
                                     .rel(0)
                                     .ivLoadPolicy(3)
                                     .ccLoadPolicy(0)
                                     .build()
-                                initialize(viewModel.playerManager.listener, options)
 
-                                // DEMONIC Auto Ad-Skip: Injects DOM observer to auto-click skip buttons & fast-forward ads
-                                fun findWebView(v: android.view.View): android.webkit.WebView? {
-                                    if (v is android.webkit.WebView) return v
-                                    if (v is android.view.ViewGroup) {
+                                // Unblock programmatic playback in Android WebView
+                                fun configureWebView(v: android.view.View) {
+                                    if (v is android.webkit.WebView) {
+                                        v.settings.apply {
+                                            javaScriptEnabled = true
+                                            mediaPlaybackRequiresUserGesture = false
+                                            domStorageEnabled = true
+                                        }
+                                    } else if (v is android.view.ViewGroup) {
                                         for (i in 0 until v.childCount) {
-                                            val found = findWebView(v.getChildAt(i))
-                                            if (found != null) return found
+                                            configureWebView(v.getChildAt(i))
                                         }
                                     }
-                                    return null
                                 }
 
-                                val injectAdSkip = Runnable {
+                                configureWebView(this)
+                                initialize(viewModel.playerManager.listener, options)
+                                post { configureWebView(this) }
+
+                                // DEMONIC Multi-Layer Ad-Killer:
+                                // 1. Injects CSS to hide ad banners & overlays
+                                // 2. Runs interval to auto-click skip buttons and 16x fast-forward any unskippable ad
+                                fun injectAdKiller() {
+                                    fun findWebView(v: android.view.View): android.webkit.WebView? {
+                                        if (v is android.webkit.WebView) return v
+                                        if (v is android.view.ViewGroup) {
+                                            for (i in 0 until v.childCount) {
+                                                val found = findWebView(v.getChildAt(i))
+                                                if (found != null) return found
+                                            }
+                                        }
+                                        return null
+                                    }
+
                                     findWebView(this)?.let { webView ->
-                                        val adSkipJs = """
+                                        val adKillerJs = """
                                             (function() {
-                                                if (window._demonicAdBlockerActive) return;
-                                                window._demonicAdBlockerActive = true;
+                                                if (window._demonicAdKillerInstalled) return;
+                                                window._demonicAdKillerInstalled = true;
+                                                try {
+                                                    var style = document.createElement('style');
+                                                    style.innerHTML = '.ytp-ad-overlay-container, .ytp-ad-message-container, .ytp-ad-action-interstitial, .companion-ad-container, .ytp-ad-preview-container, .ad-created { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+                                                    document.head.appendChild(style);
+                                                } catch(e) {}
                                                 setInterval(function() {
                                                     try {
                                                         var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton, .ytp-skip-ad-button, .ytp-ad-overlay-close-button');
                                                         if (skipBtn) skipBtn.click();
                                                         var adContainer = document.querySelector('.ad-showing, .ad-interrupting');
-                                                        if (adContainer) {
-                                                            var video = document.querySelector('video');
-                                                            if (video && !isNaN(video.duration) && video.duration > 0) {
+                                                        var video = document.querySelector('video');
+                                                        if (adContainer && video) {
+                                                            video.muted = true;
+                                                            video.playbackRate = 16.0;
+                                                            if (!isNaN(video.duration) && video.duration > 0) {
                                                                 video.currentTime = video.duration;
                                                             }
                                                         }
                                                     } catch(e) {}
-                                                }, 400);
+                                                }, 250);
                                             })();
                                         """.trimIndent()
-                                        webView.evaluateJavascript(adSkipJs, null)
+                                        webView.evaluateJavascript(adKillerJs, null)
                                     }
                                 }
-                                postDelayed(injectAdSkip, 1500)
-                                postDelayed(injectAdSkip, 4000)
+
+                                postDelayed({ injectAdKiller() }, 1000)
+                                postDelayed({ injectAdKiller() }, 3000)
                             }
                         },
                         modifier = Modifier.fillMaxSize()
