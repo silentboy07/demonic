@@ -166,18 +166,17 @@ fun RoomScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     var playerViewRef by remember { mutableStateOf<YouTubePlayerView?>(null) }
 
-    DisposableEffect(lifecycleOwner, playerViewRef) {
-        val playerView = playerViewRef
+    DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_DESTROY) {
-                playerView?.release()
+                playerViewRef?.release()
                 viewModel.playerManager.release()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            playerView?.release()
+            playerViewRef?.release()
             viewModel.playerManager.release()
         }
     }
@@ -527,7 +526,7 @@ fun RoomScreen(
 
                                 // DEMONIC Multi-Layer Ad-Killer:
                                 // 1. Injects CSS to hide ad banners & overlays
-                                // 2. Runs interval to auto-click skip buttons and 16x fast-forward any unskippable ad
+                                // 2. Runs interval to auto-click skip buttons and 16x fast-forward ads while preserving track playback
                                 fun injectAdKiller() {
                                     fun findWebView(v: android.view.View): android.webkit.WebView? {
                                         if (v is android.webkit.WebView) return v
@@ -547,7 +546,7 @@ fun RoomScreen(
                                                 window._demonicAdKillerInstalled = true;
                                                 try {
                                                     var style = document.createElement('style');
-                                                    style.innerHTML = '.ytp-ad-overlay-container, .ytp-ad-message-container, .ytp-ad-action-interstitial, .companion-ad-container, .ytp-ad-preview-container, .ad-created { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+                                                    style.innerHTML = '.ytp-ad-overlay-container, .ytp-ad-message-container, .ytp-ad-action-interstitial, .companion-ad-container, .ytp-ad-preview-container, .ad-created, .ytp-ad-module, .ytp-ad-image-overlay, .ytp-ad-text-overlay, .video-ads, .ytp-ad-player-overlay { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
                                                     document.head.appendChild(style);
                                                 } catch(e) {}
                                                 setInterval(function() {
@@ -559,9 +558,9 @@ fun RoomScreen(
                                                         if (adContainer && video) {
                                                             video.muted = true;
                                                             video.playbackRate = 16.0;
-                                                            if (!isNaN(video.duration) && video.duration > 0) {
-                                                                video.currentTime = video.duration;
-                                                            }
+                                                        } else if (video && video.playbackRate > 1.0) {
+                                                            video.playbackRate = 1.0;
+                                                            video.muted = false;
                                                         }
                                                     } catch(e) {}
                                                 }, 250);

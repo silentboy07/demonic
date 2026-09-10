@@ -1,12 +1,14 @@
-﻿package com.nddfeon.demonic.ui.components
+package com.nddfeon.demonic.ui.components
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import java.io.ByteArrayInputStream
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -252,13 +254,114 @@ fun YouTubeExplorerSheet(
                                 }
                             }
 
+                            fun injectAdBlocker(view: WebView?) {
+                                val js = """
+                                    (function() {
+                                        var cssId = 'demonic-adblock-css';
+                                        if (!document.getElementById(cssId)) {
+                                            var style = document.createElement('style');
+                                            style.id = cssId;
+                                            style.innerHTML = `
+                                                ytm-promoted-sparkles-web-renderer,
+                                                ytm-promoted-video-renderer,
+                                                ytm-companion-ad-renderer,
+                                                ytm-promoted-sparkles-text-search-web-renderer,
+                                                ytm-ad-slot-renderer,
+                                                .ytm-promoted-sparkles-web-renderer,
+                                                .ad-container,
+                                                .ad-div,
+                                                .video-ads,
+                                                .ytp-ad-overlay-container,
+                                                .ytp-ad-message-container,
+                                                .ytp-ad-action-interstitial,
+                                                .companion-ad-container,
+                                                .ytp-ad-preview-container,
+                                                .ad-created,
+                                                .ytp-ad-module,
+                                                .ytp-ad-image-overlay,
+                                                .ytp-ad-text-overlay,
+                                                ytd-promoted-video-renderer,
+                                                ytd-display-ad-renderer,
+                                                ytd-banner-promo-renderer,
+                                                ytd-in-feed-ad-layout-renderer,
+                                                ytd-ad-slot-renderer,
+                                                .mobile-topbar-header-sign-in-button,
+                                                .upsell-dialog-renderer,
+                                                #masthead-ad,
+                                                #player-ads,
+                                                ytm-item-section-renderer[section-identifier="comment-item-section"] + ytm-ad-slot-renderer {
+                                                    display: none !important;
+                                                    visibility: hidden !important;
+                                                    height: 0px !important;
+                                                    width: 0px !important;
+                                                    opacity: 0 !important;
+                                                    pointer-events: none !important;
+                                                }
+                                            `;
+                                            (document.head || document.documentElement).appendChild(style);
+                                        }
+                                        if (!window._demonicExplorerAdBlock) {
+                                            window._demonicExplorerAdBlock = true;
+                                            setInterval(function() {
+                                                try {
+                                                    var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton, .ytp-skip-ad-button, .ytp-ad-overlay-close-button');
+                                                    if (skipBtn) skipBtn.click();
+                                                    var ad = document.querySelector('.ad-showing, .ad-interrupting');
+                                                    var v = document.querySelector('video');
+                                                    if (ad && v) {
+                                                        v.muted = true;
+                                                        v.playbackRate = 16.0;
+                                                    } else if (v && v.playbackRate > 1.0) {
+                                                        v.playbackRate = 1.0;
+                                                        v.muted = false;
+                                                    }
+                                                    var appPromo = document.querySelector('.upsell-dialog-renderer button, .mobile-topbar-header-sign-in-button');
+                                                    if (appPromo) appPromo.click();
+                                                } catch(e) {}
+                                            }, 250);
+                                        }
+                                    })();
+                                """.trimIndent()
+                                view?.evaluateJavascript(js, null)
+                            }
+
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                                     isLoading = true
+                                    injectAdBlocker(view)
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     isLoading = false
+                                    injectAdBlocker(view)
+                                }
+
+                                override fun onLoadResource(view: WebView?, url: String?) {
+                                    super.onLoadResource(view, url)
+                                    injectAdBlocker(view)
+                                }
+
+                                override fun shouldInterceptRequest(
+                                    view: WebView?,
+                                    request: WebResourceRequest?
+                                ): WebResourceResponse? {
+                                    val reqUrl = request?.url?.toString()?.lowercase() ?: return null
+                                    if (reqUrl.contains("doubleclick.net") ||
+                                        reqUrl.contains("/pagead/") ||
+                                        reqUrl.contains("googleads") ||
+                                        reqUrl.contains("adservice.google") ||
+                                        reqUrl.contains("googlesyndication.com") ||
+                                        reqUrl.contains("/api/stats/ads") ||
+                                        reqUrl.contains("/ptracking") ||
+                                        reqUrl.contains("/get_midroll_info") ||
+                                        reqUrl.contains("/youtubei/v1/player/ad_break") ||
+                                        reqUrl.contains("ad.doubleclick") ||
+                                        reqUrl.contains("amazon-adsystem") ||
+                                        reqUrl.contains("adnxs.com")
+                                    ) {
+                                        return WebResourceResponse("text/plain", "UTF-8", ByteArrayInputStream(ByteArray(0)))
+                                    }
+                                    return super.shouldInterceptRequest(view, request)
                                 }
 
                                 override fun shouldOverrideUrlLoading(
