@@ -76,6 +76,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PlayArrow
@@ -340,29 +341,37 @@ fun RoomScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // In-App YouTube Search Pill Button (Opens Search Modal)
+                // Demonic Music Hub & Search Pill Button (Opens Native Music Hub)
                 Row(
                     modifier = Modifier
                         .weight(1f)
                         .height(38.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(DemonicSurface)
-                        .border(1.dp, DemonicBorder, RoundedCornerShape(10.dp))
-                        .clickable { showSearchDialog = true }
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(DemonicSurface, Color(0xFF1B1429))
+                            )
+                        )
+                        .border(1.dp, DemonicViolet.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                        .clickable {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            showExplorerSheet = true
+                        }
                         .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = DemonicTextSecondary,
-                        modifier = Modifier.size(16.dp)
+                        imageVector = Icons.Default.Headphones,
+                        contentDescription = "Music Hub",
+                        tint = DemonicViolet,
+                        modifier = Modifier.size(17.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Search song...",
-                        color = DemonicTextMuted,
+                        text = "Music Hub & Search...",
+                        color = Color.White.copy(alpha = 0.9f),
                         fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -397,39 +406,6 @@ fun RoomScreen(
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
-                    }
-                }
-
-                // YouTube In-App Explorer Button (Host / DJ Only)
-                if (uiState.canControlPlayback) {
-                    Box(
-                        modifier = Modifier
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(DemonicViolet.copy(alpha = 0.18f))
-                            .border(1.dp, DemonicViolet.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                            .clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                showExplorerSheet = true
-                            }
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Explore,
-                                contentDescription = "Explore",
-                                tint = DemonicViolet,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "YouTube",
-                                color = DemonicViolet,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
                 }
 
@@ -682,7 +658,7 @@ fun RoomScreen(
                                 )
                             )
                             .border(1.dp, DemonicBorder, RoundedCornerShape(14.dp))
-                            .clickable { showSearchDialog = true },
+                            .clickable { showExplorerSheet = true },
                         contentAlignment = Alignment.Center
                     ) {
                         if (isCompact) {
@@ -958,7 +934,7 @@ fun RoomScreen(
                 canControlPlayback = uiState.canControlPlayback,
                 currentUid = currentUser?.uid ?: "",
                 onDismiss = { showQueueSheet = false },
-                onOpenSearch = { showSearchDialog = true },
+                onOpenSearch = { showExplorerSheet = true },
                 onPlayTrack = { track ->
                     viewModel.playQueueItem(track)
                 },
@@ -989,15 +965,20 @@ fun RoomScreen(
             )
         }
 
-        // YouTube In-App Explorer Sheet (Host or DJ only)
-        if (showExplorerSheet && uiState.canControlPlayback) {
+        // Demonic Music Hub Sheet (Zero-Search Picks, Playlist Auto-Queue, Native Playback)
+        if (showExplorerSheet) {
             YouTubeExplorerSheet(
+                searchManager = searchManager,
+                canControlPlayback = uiState.canControlPlayback,
                 onDismiss = { showExplorerSheet = false },
                 onPlayNow = { videoId, title ->
                     viewModel.playTrack(videoId, title)
                 },
                 onAddToQueue = { videoId, title ->
                     viewModel.addToQueue(videoId, title)
+                },
+                onImportPlaylistOrLink = { input, onProgress, onSuccess, onError ->
+                    viewModel.importPlaylistOrLink(input, onProgress, onSuccess, onError)
                 }
             )
         }

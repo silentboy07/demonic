@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.player
+package com.nddfeon.demonic.player
 
 import java.util.regex.Pattern
 
@@ -36,7 +36,32 @@ object YouTubeUrlParser {
         return null
     }
 
+    private val PLAYLIST_PATTERNS = listOf(
+        // ?list=ID or &list=ID
+        Pattern.compile("[?&]list=([a-zA-Z0-9_-]+)"),
+        // Direct playlist ID (PL..., RD..., etc.)
+        Pattern.compile("^(?:PL|RD|UU|LL|FL|OLAK)[a-zA-Z0-9_-]{10,}$")
+    )
+
+    fun extractPlaylistId(input: String?): String? {
+        if (input.isNullOrBlank()) return null
+        val trimmed = input.trim()
+
+        for (pattern in PLAYLIST_PATTERNS) {
+            val matcher = pattern.matcher(trimmed)
+            if (matcher.find()) {
+                val groupCount = matcher.groupCount()
+                val id = if (groupCount >= 1) matcher.group(1) else matcher.group(0)
+                if (!id.isNullOrBlank() && id.length >= 10) {
+                    return id
+                }
+            }
+        }
+        return null
+    }
+
     fun getThumbnailUrl(videoId: String, quality: String = "hqdefault"): String {
         return "https://img.youtube.com/vi/$videoId/$quality.jpg"
     }
 }
+

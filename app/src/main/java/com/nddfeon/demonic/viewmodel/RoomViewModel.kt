@@ -13,6 +13,7 @@ import com.nddfeon.demonic.data.repository.AuthRepository
 import com.nddfeon.demonic.data.repository.RoomRepository
 import com.nddfeon.demonic.player.DemonicPlaybackService
 import com.nddfeon.demonic.player.YouTubePlayerManager
+import com.nddfeon.demonic.player.YouTubeSearchManager
 import com.nddfeon.demonic.player.YouTubeUrlParser
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -51,7 +52,8 @@ class RoomViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val roomRepository: RoomRepository,
     private val authRepository: AuthRepository,
-    val playerManager: YouTubePlayerManager
+    val playerManager: YouTubePlayerManager,
+    val searchManager: YouTubeSearchManager
 ) : ViewModel() {
 
     private val roomCode: String = savedStateHandle["roomCode"] ?: ""
@@ -385,6 +387,93 @@ class RoomViewModel @Inject constructor(
         )
         viewModelScope.launch {
             roomRepository.addToQueue(roomCode, item)
+        }
+    }
+
+    fun addMultipleToQueue(songs: List<Pair<String, String>>) {
+        if (songs.isEmpty()) return
+        val user = getEffectiveUser()
+        val baseTime = System.currentTimeMillis()
+        val items = songs.mapIndexed { index, (videoId, title) ->
+            QueueItem(
+                id = "q_${baseTime}_${index}_${(100..999).random()}",
+                videoId = videoId,
+                title = title,
+                thumbnailUrl = "https://img.youtube.com/vi/$videoId/hqdefault.jpg",
+                addedByUid = user.uid,
+                addedByName = user.displayName,
+                addedAt = baseTime + index
+            )
+        }
+        viewModelScope.launch {
+            roomRepository.addMultipleToQueue(roomCode, items)
+        }
+    }
+
+    fun importPlaylistOrLink(
+        input: String,
+        onProgress: (String) -> Unit,
+        onSuccess: (count: Int, message: String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val trimmed = input.trim()
+        if (trimmed.isEmpty()) {
+            onError("Please enter a valid YouTube link or Playlist URL")
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                onProgress("Analyzing URL...")
+                val playlistId = YouTubeUrlParser.extractPlaylistId(trimmed)
+                if (playlistId != null) {
+                    onProgress("Fetching tracks from playlist...")
+                    val videos = searchManager.fetchPlaylistVideos(playlistId)
+                    if (videos.isEmpty()) {
+                        onError("Could not extract songs from this playlist. Verify the playlist is public.")
+                        return@launch
+                    }
+
+                    val pairs = videos.map { it.videoId to it.title }
+                    val currentVideo = _uiState.value.room?.videoId ?: ""
+
+                    // If room is empty and user has playback rights, start first song & queue rest
+                    if (currentVideo.isEmpty() && _uiState.value.canControlPlayback) {
+                        val first = pairs.first()
+                        playTrack(first.first, first.second)
+                        if (pairs.size > 1) {
+                            addMultipleToQueue(pairs.drop(1))
+                        }
+                        onSuccess(pairs.size, "Playing '${first.second}' & added ${pairs.size - 1} songs to queue! 🎶")
+                    } else {
+                        addMultipleToQueue(pairs)
+                        onSuccess(pairs.size, "Successfully added ${pairs.size} songs from playlist to queue! 🎶")
+                    }
+                    return@launch
+                }
+
+                // If single video link or 11-char ID
+                val singleId = YouTubeUrlParser.extractVideoId(trimmed)
+                if (singleId != null) {
+                    onProgress("Fetching video details...")
+                    val results = searchManager.search(singleId)
+                    val title = results.firstOrNull()?.title ?: "YouTube Video ($singleId)"
+                    val currentVideo = _uiState.value.room?.videoId ?: ""
+
+                    if (currentVideo.isEmpty() && _uiState.value.canControlPlayback) {
+                        playTrack(singleId, title)
+                        onSuccess(1, "Playing '$title' in room! 🎵")
+                    } else {
+                        addToQueue(singleId, title)
+                        onSuccess(1, "Added '$title' to queue! 🎵")
+                    }
+                    return@launch
+                }
+
+                onError("Unrecognized link. Please paste a valid YouTube video or playlist link.")
+            } catch (e: Exception) {
+                onError("Failed to import: ${e.localizedMessage ?: "Network error"}")
+            }
         }
     }
 

@@ -56,6 +56,7 @@ interface RoomRepository {
 
     suspend fun passTheAux(roomCode: String, djUid: String): Result<Unit>
     suspend fun addToQueue(roomCode: String, item: QueueItem): Result<Unit>
+    suspend fun addMultipleToQueue(roomCode: String, items: List<QueueItem>): Result<Unit>
     suspend fun removeFromQueue(roomCode: String, itemId: String): Result<Unit>
     suspend fun reorderQueue(roomCode: String, newQueue: List<QueueItem>): Result<Unit>
     suspend fun upvoteQueueItem(roomCode: String, itemId: String, uid: String): Result<Unit>
@@ -717,6 +718,32 @@ class FirebaseRoomRepository @Inject constructor(
                     "addedAt" to ServerValue.TIMESTAMP
                 )
                 itemRef.setValue(data).await()
+            } catch (_: Exception) {}
+        }
+
+        return Result.success(Unit)
+    }
+
+    override suspend fun addMultipleToQueue(roomCode: String, items: List<QueueItem>): Result<Unit> {
+        if (items.isEmpty()) return Result.success(Unit)
+        val upperCode = roomCode.trim().uppercase()
+        val queueFlow = getOrCreateLocalQueue(upperCode)
+        queueFlow.value = queueFlow.value + items
+
+        scope.launch {
+            try {
+                val updates = hashMapOf<String, Any>()
+                items.forEach { item ->
+                    updates["rooms/$upperCode/queue/${item.id}"] = hashMapOf(
+                        "videoId" to item.videoId,
+                        "title" to item.title,
+                        "thumbnailUrl" to item.thumbnailUrl,
+                        "addedByUid" to item.addedByUid,
+                        "addedByName" to item.addedByName,
+                        "addedAt" to ServerValue.TIMESTAMP
+                    )
+                }
+                database.reference.updateChildren(updates).await()
             } catch (_: Exception) {}
         }
 

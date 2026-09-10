@@ -141,7 +141,8 @@ class MainActivity : ComponentActivity() {
                                             savedStateHandle = savedStateHandle,
                                             roomRepository = app.roomRepository,
                                             authRepository = app.authRepository,
-                                            playerManager = app.youTubePlayerManager
+                                            playerManager = app.youTubePlayerManager,
+                                            searchManager = app.youTubeSearchManager
                                         ) as T
                                     }
                                 }
