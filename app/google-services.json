@@ -13,7 +13,20 @@
           "package_name": "com.nddfeon.demonic"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "491444689763-epk6el3id0uk8fehjm29mmt9pugl5epg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.nddfeon.demonic",
+            "certificate_hash": "182e653736b6811e58a1a4b5e2b587ce0390df6c"
+          }
+        },
+        {
+          "client_id": "491444689763-g7hd82266rc7it6l49vussnpb8kcpdb9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAMkteDZHsVIhR-fMJpv8gWb2UUWjLZMOs"
@@ -21,7 +34,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "491444689763-g7hd82266rc7it6l49vussnpb8kcpdb9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.ui.login
+package com.nddfeon.demonic.ui.login
 
 import android.app.Activity
 import android.content.Intent
@@ -232,11 +232,19 @@ fun LoginScreen(
                 GoogleSignInButton(
                     isLoading = uiState.isLoading,
                     onClick = {
-                        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                        val webClientId = try {
+                            context.getString(com.nddfeon.demonic.R.string.default_web_client_id)
+                        } catch (_: Exception) {
+                            "491444689763-g7hd82266rc7it6l49vussnpb8kcpdb9.apps.googleusercontent.com"
+                        }
+                        val gsoBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                             .requestEmail()
                             .requestProfile()
-                            .build()
-                        val client = GoogleSignIn.getClient(context, gso)
+
+                        if (webClientId.isNotBlank()) {
+                            gsoBuilder.requestIdToken(webClientId)
+                        }
+                        val client = GoogleSignIn.getClient(context, gsoBuilder.build())
                         googleSignInLauncher.launch(client.signInIntent)
                     }
                 )
