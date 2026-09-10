@@ -66,10 +66,26 @@ class RoomViewModel @Inject constructor(
     val uiState: StateFlow<RoomUiState> = _uiState.asStateFlow()
 
     private var driftMonitoringJob: Job? = null
+    private var sleepTimerJob: Job? = null
+    private val _sleepTimerMinutes = MutableStateFlow<Int?>(null)
+    val sleepTimerMinutes: StateFlow<Int?> = _sleepTimerMinutes.asStateFlow()
+
     private var lastKnownRoom: Room? = null
     private var lastObservedVideoId: String = ""
     private var lastVideoLoadedTime: Long = 0L
     private var lastDriftSeekTime: Long = 0L
+
+    fun setSleepTimer(minutes: Int?) {
+        _sleepTimerMinutes.value = minutes
+        sleepTimerJob?.cancel()
+        if (minutes != null && minutes > 0) {
+            sleepTimerJob = viewModelScope.launch {
+                delay(minutes * 60 * 1000L)
+                playerManager.pause()
+                _sleepTimerMinutes.value = null
+            }
+        }
+    }
 
     private fun getEffectiveUser(): UserAccount {
         return currentUser.value ?: UserAccount(
@@ -579,6 +595,7 @@ class RoomViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         driftMonitoringJob?.cancel()
+        sleepTimerJob?.cancel()
         DemonicPlaybackService.onNextTrackCallback = null
         playerManager.release()
     }

@@ -97,8 +97,13 @@ import com.nddfeon.demonic.ui.components.ReactionButtonBar
 import com.nddfeon.demonic.ui.components.SyncStatusBadge
 import com.nddfeon.demonic.ui.components.TypingIndicatorBubble
 import com.nddfeon.demonic.ui.components.VinylDisc
+import com.nddfeon.demonic.ui.components.NowPlayingTrackBanner
+import com.nddfeon.demonic.ui.components.RoomQrDialog
+import com.nddfeon.demonic.ui.components.SleepTimerDialog
 import com.nddfeon.demonic.ui.components.YouTubeExplorerSheet
 import com.nddfeon.demonic.ui.components.YouTubeSearchDialog
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.QrCode
 import com.nddfeon.demonic.ui.theme.DemonicBackground
 import com.nddfeon.demonic.ui.theme.DemonicBorder
 import com.nddfeon.demonic.ui.theme.DemonicCrimson
@@ -150,6 +155,9 @@ fun RoomScreen(
     var showQueueSheet by remember { mutableStateOf(false) }
     var showMembersSheet by remember { mutableStateOf(false) }
     var showExplorerSheet by remember { mutableStateOf(false) }
+    var showQrDialog by remember { mutableStateOf(false) }
+    var showSleepTimerDialog by remember { mutableStateOf(false) }
+    val sleepTimerMinutes by viewModel.sleepTimerMinutes.collectAsState()
 
     // Synchronize Android Foreground Service for lock screen controls & Xiaomi freeze immunity
     LaunchedEffect(uiState.room?.videoId, uiState.room?.isPlaying, uiState.room?.videoTitle) {
@@ -343,6 +351,51 @@ fun RoomScreen(
                                 tint = DemonicTextPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
+                        }
+
+                        // Instant QR Code Invite Button
+                        IconButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                showQrDialog = true
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode,
+                                contentDescription = "QR Code",
+                                tint = DemonicTextPrimary,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+
+                        // Sleep Timer Button with active minute badge
+                        IconButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                showSleepTimerDialog = true
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            BadgedBox(
+                                badge = {
+                                    if (sleepTimerMinutes != null) {
+                                        Badge(
+                                            containerColor = DemonicViolet,
+                                            contentColor = Color.White
+                                        ) {
+                                            Text("${sleepTimerMinutes}m", fontSize = 9.sp)
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bedtime,
+                                    contentDescription = "Sleep Timer",
+                                    tint = if (sleepTimerMinutes != null) DemonicViolet else DemonicTextPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
 
                         // Host End & Delete Room Button
@@ -754,6 +807,17 @@ fun RoomScreen(
             }
 
             if (!isInPip) {
+                // Now Playing Track Banner with Live Animated Audio Equalizer
+                if (playerDisplayMode != PlayerDisplayMode.COMPACT && !uiState.room?.videoId.isNullOrEmpty()) {
+                    NowPlayingTrackBanner(
+                        title = uiState.room?.videoTitle ?: "",
+                        isPlaying = uiState.room?.isPlaying ?: false,
+                        nextTrackTitle = uiState.queue.firstOrNull()?.title,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                        onClick = { showQueueSheet = true }
+                    )
+                }
+
                 // Playback Controls & Progress Scrubber (Host or DJ) - Hidden in Compact Mini-Player mode
                 if (uiState.canControlPlayback && playerDisplayMode != PlayerDisplayMode.COMPACT) {
                     RoomPlaybackControlsSection(
@@ -909,6 +973,23 @@ fun RoomScreen(
                     onImportPlaylistOrLink = { input, onProgress, onSuccess, onError ->
                         viewModel.importPlaylistOrLink(input, onProgress, onSuccess, onError)
                     }
+                )
+            }
+
+            // Room QR Code Share Dialog
+            if (showQrDialog) {
+                RoomQrDialog(
+                    roomCode = uiState.roomCode,
+                    onDismiss = { showQrDialog = false }
+                )
+            }
+
+            // Sleep Timer Dialog
+            if (showSleepTimerDialog) {
+                SleepTimerDialog(
+                    currentMinutes = sleepTimerMinutes,
+                    onSelectMinutes = { viewModel.setSleepTimer(it) },
+                    onDismiss = { showSleepTimerDialog = false }
                 )
             }
         }
