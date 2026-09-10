@@ -27,7 +27,11 @@ class DemonicApp : Application() {
     override fun onCreate() {
         super.onCreate()
         val auth = FirebaseAuth.getInstance()
-        val database = FirebaseDatabase.getInstance()
+        val database = try {
+            FirebaseDatabase.getInstance("https://demonic-4a2f7-default-rtdb.firebaseio.com")
+        } catch (_: Exception) {
+            FirebaseDatabase.getInstance()
+        }
         try {
             database.setPersistenceEnabled(true)
         } catch (_: Exception) {}
