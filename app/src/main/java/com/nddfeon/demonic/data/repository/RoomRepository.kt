@@ -225,10 +225,8 @@ class FirebaseRoomRepository @Inject constructor(
 
         var remoteRoom: Room? = null
         try {
-            val snapshot = withTimeoutOrNull(3000L) {
-                database.getReference("rooms").child(upperCode).get().await()
-            }
-            if (snapshot != null && snapshot.exists()) {
+            val snapshot = database.getReference("rooms").child(upperCode).get().await()
+            if (snapshot.exists()) {
                 val hostId = snapshot.child("hostId").getValue(String::class.java) ?: ""
                 val djId = snapshot.child("djId").getValue(String::class.java)
                 val videoId = snapshot.child("videoId").getValue(String::class.java) ?: "dQw4w9WgXcQ"
@@ -259,7 +257,20 @@ class FirebaseRoomRepository @Inject constructor(
                             "photoUrl" to (user.photoUrl ?: ""),
                             "joinedAt" to ServerValue.TIMESTAMP
                         )
-                        database.getReference("rooms").child(upperCode).child("members").child(user.uid).setValue(memberData).await()
+                        val memberRef = database.getReference("rooms").child(upperCode).child("members").child(user.uid)
+                        memberRef.setValue(memberData).await()
+                        memberRef.onDisconnect().removeValue()
+
+                        // Broadcast join message to chat
+                        val sysMsgId = "sys_join_${System.currentTimeMillis()}_${(100..999).random()}"
+                        val joinMsg = hashMapOf<String, Any>(
+                            "id" to sysMsgId,
+                            "senderId" to "system",
+                            "senderName" to "DEMONIC",
+                            "text" to "${user.displayName} joined the room 👋",
+                            "sentAt" to ServerValue.TIMESTAMP
+                        )
+                        database.getReference("rooms").child(upperCode).child("messages").child(sysMsgId).setValue(joinMsg)
                     } catch (_: Exception) {}
                 }
             }
@@ -297,6 +308,8 @@ class FirebaseRoomRepository @Inject constructor(
     override suspend fun leaveRoom(roomCode: String, uid: String) {
         val upperCode = roomCode.trim().uppercase()
         val currentMembers = localMembers[upperCode]?.value ?: emptyList()
+        val leavingMember = currentMembers.find { it.uid == uid }
+        val displayName = leavingMember?.name ?: "A member"
         localMembers[upperCode]?.value = currentMembers.filter { it.uid != uid }
         updatePublicRoomsList()
 
@@ -304,6 +317,17 @@ class FirebaseRoomRepository @Inject constructor(
             try {
                 database.getReference("rooms").child(upperCode).child("members").child(uid).removeValue().await()
                 database.getReference("rooms").child(upperCode).child("typing").child(uid).removeValue().await()
+
+                // Broadcast leave message to chat
+                val sysMsgId = "sys_leave_${System.currentTimeMillis()}_${(100..999).random()}"
+                val leaveMsg = hashMapOf<String, Any>(
+                    "id" to sysMsgId,
+                    "senderId" to "system",
+                    "senderName" to "DEMONIC",
+                    "text" to "$displayName left the room 🚪",
+                    "sentAt" to ServerValue.TIMESTAMP
+                )
+                database.getReference("rooms").child(upperCode).child("messages").child(sysMsgId).setValue(leaveMsg)
             } catch (_: Exception) {}
         }
     }
@@ -384,6 +408,9 @@ class FirebaseRoomRepository @Inject constructor(
                         )
                         localFlow.value = sorted
                         trySend(sorted)
+                    } else {
+                        localFlow.value = emptyList()
+                        trySend(emptyList())
                     }
                 }
                 override fun onCancelled(error: DatabaseError) {}

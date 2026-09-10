@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.ui.components
+package com.nddfeon.demonic.ui.components
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
@@ -79,6 +79,31 @@ fun ChatMessageItem(
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val formattedTime = remember(message.sentAt) {
         if (message.sentAt > 0) timeFormat.format(Date(message.sentAt)) else ""
+    }
+
+    if (message.senderId == "system") {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF1E1928))
+                    .border(1.dp, DemonicBorder, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = message.text,
+                    color = DemonicTextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+        return
     }
 
     AnimatedVisibility(

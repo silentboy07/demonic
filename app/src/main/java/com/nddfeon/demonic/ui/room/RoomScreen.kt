@@ -857,37 +857,6 @@ fun RoomScreen(
                         }
                     }
                 }
-            } else if (playerDisplayMode != PlayerDisplayMode.COMPACT) {
-                // Listener banner
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(DemonicSurface)
-                        .border(1.dp, DemonicBorder, RoundedCornerShape(10.dp))
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "🎧 Playback controlled by Host & DJ • ${formatSeconds(currentSecond)} / ${if (duration > 0f) formatSeconds(duration) else "--:--"}",
-                        color = DemonicTextMuted,
-                        fontSize = 11.sp
-                    )
-                }
-            }
-
-            // Member Avatars Row with Pass the Aux (Hidden in Compact mode for maximum chat space)
-            if (playerDisplayMode != PlayerDisplayMode.COMPACT) {
-                MemberAvatarRow(
-                    members = uiState.members,
-                    djId = uiState.room?.djId,
-                    isHostUser = uiState.isHost,
-                    onPassAux = { targetUid ->
-                        viewModel.passTheAux(targetUid)
-                    },
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
             }
 
             // Live Chat Stream
