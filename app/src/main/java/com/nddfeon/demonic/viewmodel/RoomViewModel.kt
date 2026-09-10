@@ -11,6 +11,7 @@ import com.nddfeon.demonic.data.model.Room
 import com.nddfeon.demonic.data.model.UserAccount
 import com.nddfeon.demonic.data.repository.AuthRepository
 import com.nddfeon.demonic.data.repository.RoomRepository
+import com.nddfeon.demonic.player.DemonicPlaybackService
 import com.nddfeon.demonic.player.YouTubePlayerManager
 import com.nddfeon.demonic.player.YouTubeUrlParser
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
@@ -88,6 +89,9 @@ class RoomViewModel @Inject constructor(
         observeQueue()
         observeReactions()
         observePlayerStateForAutoNext()
+        DemonicPlaybackService.onNextTrackCallback = {
+            skipToNextTrack()
+        }
         startDriftMonitoringLoop()
     }
 
@@ -230,6 +234,12 @@ class RoomViewModel @Inject constructor(
                     }
                 }
             }
+        }
+    }
+
+    fun skipToNextTrack() {
+        if (_uiState.value.canControlPlayback) {
+            autoPlayNextTrack()
         }
     }
 
@@ -463,6 +473,7 @@ class RoomViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         driftMonitoringJob?.cancel()
+        DemonicPlaybackService.onNextTrackCallback = null
         playerManager.release()
     }
 }

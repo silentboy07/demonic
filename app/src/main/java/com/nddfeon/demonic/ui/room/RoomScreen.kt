@@ -72,17 +72,31 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.UnfoldMore
+import coil.compose.AsyncImage
+import com.nddfeon.demonic.player.DemonicPlaybackService
 import com.nddfeon.demonic.player.YouTubeSearchManager
 import com.nddfeon.demonic.ui.components.ChatInputBar
 import com.nddfeon.demonic.ui.components.ChatMessageItem
 import com.nddfeon.demonic.ui.components.DemonicButton
 import com.nddfeon.demonic.ui.components.FloatingReactionsOverlay
 import com.nddfeon.demonic.ui.components.MemberAvatarRow
+import com.nddfeon.demonic.ui.components.MembersBottomSheet
 import com.nddfeon.demonic.ui.components.QueueBottomSheet
 import com.nddfeon.demonic.ui.components.ReactionButtonBar
 import com.nddfeon.demonic.ui.components.SyncStatusBadge
 import com.nddfeon.demonic.ui.components.TypingIndicatorBubble
 import com.nddfeon.demonic.ui.components.VinylDisc
+import com.nddfeon.demonic.ui.components.YouTubeExplorerSheet
 import com.nddfeon.demonic.ui.components.YouTubeSearchDialog
 import com.nddfeon.demonic.ui.theme.DemonicBackground
 import com.nddfeon.demonic.ui.theme.DemonicBorder
@@ -100,6 +114,12 @@ import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFram
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 import kotlinx.coroutines.launch
 
+enum class PlayerDisplayMode {
+    VIDEO,
+    VINYL,
+    COMPACT
+}
+
 @Composable
 fun RoomScreen(
     viewModel: RoomViewModel,
@@ -115,9 +135,33 @@ fun RoomScreen(
     val currentSecond by viewModel.playerManager.currentSecond.collectAsState()
     val duration by viewModel.playerManager.duration.collectAsState()
 
-    var showPlayerVideo by remember { mutableStateOf(true) }
+    var playerDisplayMode by remember { mutableStateOf(PlayerDisplayMode.VIDEO) }
     var showSearchDialog by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
+    var showMembersSheet by remember { mutableStateOf(false) }
+    var showExplorerSheet by remember { mutableStateOf(false) }
+
+    // Synchronize Android Foreground Service for lock screen controls & Xiaomi freeze immunity
+    LaunchedEffect(uiState.room?.videoId, uiState.room?.isPlaying, uiState.room?.videoTitle) {
+        val videoId = uiState.room?.videoId ?: ""
+        if (videoId.isNotEmpty()) {
+            DemonicPlaybackService.startService(
+                context = context,
+                roomCode = uiState.roomCode,
+                videoId = videoId,
+                title = uiState.room?.videoTitle ?: "Demonic Stream",
+                isPlaying = uiState.room?.isPlaying ?: false
+            )
+        } else {
+            DemonicPlaybackService.stopService(context)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            DemonicPlaybackService.stopService(context)
+        }
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     var playerViewRef by remember { mutableStateOf<YouTubePlayerView?>(null) }
@@ -169,6 +213,8 @@ fun RoomScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .navigationBarsPadding()
+                .imePadding()
         ) {
             // Header Navigation Bar (Row 1: Clean, Never Overflows)
             Row(
@@ -231,6 +277,37 @@ fun RoomScreen(
                         isSyncing = uiState.isSyncing
                     )
 
+                    // Live Member Count Badge -> Opens MembersBottomSheet
+                    Box(
+                        modifier = Modifier
+                            .height(34.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(DemonicSurfaceVariant)
+                            .border(1.dp, DemonicBorder, RoundedCornerShape(10.dp))
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                showMembersSheet = true
+                            }
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.People,
+                                contentDescription = "Members",
+                                tint = DemonicTextPrimary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${uiState.members.size}",
+                                color = DemonicTextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
                     IconButton(
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
@@ -256,7 +333,7 @@ fun RoomScreen(
                 }
             }
 
-            // Quick Action Bar (Row 2: Search, Queue with badge, and Video/Disc toggle)
+            // Quick Action Bar (Row 2: Search, Queue with badge, YouTube Explorer, and 3-Mode Toggle)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -284,7 +361,7 @@ fun RoomScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Search song / artist...",
+                        text = "Search song...",
                         color = DemonicTextMuted,
                         fontSize = 12.sp,
                         maxLines = 1,
@@ -316,7 +393,7 @@ fun RoomScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Queue (${uiState.queue.size})",
+                            text = "(${uiState.queue.size})",
                             color = if (uiState.queue.isNotEmpty()) DemonicCrimson else DemonicTextPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
@@ -324,43 +401,87 @@ fun RoomScreen(
                     }
                 }
 
-                // Toggle Video / Vinyl Disc Mode
-                Box(
+                // YouTube In-App Explorer Button (Host / DJ Only)
+                if (uiState.canControlPlayback) {
+                    Box(
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(DemonicViolet.copy(alpha = 0.18f))
+                            .border(1.dp, DemonicViolet.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                showExplorerSheet = true
+                            }
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Explore,
+                                contentDescription = "Explore",
+                                tint = DemonicViolet,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "YouTube",
+                                color = DemonicViolet,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // 3-Mode Player Display Toggle (Video -> Vinyl -> Compact)
+                IconButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        playerDisplayMode = when (playerDisplayMode) {
+                            PlayerDisplayMode.VIDEO -> PlayerDisplayMode.VINYL
+                            PlayerDisplayMode.VINYL -> PlayerDisplayMode.COMPACT
+                            PlayerDisplayMode.COMPACT -> PlayerDisplayMode.VIDEO
+                        }
+                    },
                     modifier = Modifier
                         .size(38.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(DemonicSurface)
                         .border(1.dp, DemonicBorder, RoundedCornerShape(10.dp))
-                        .clickable { showPlayerVideo = !showPlayerVideo },
-                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (showPlayerVideo) Icons.Default.GraphicEq else Icons.Default.Videocam,
-                        contentDescription = "Toggle Video/Disc",
-                        tint = if (showPlayerVideo) DemonicViolet else DemonicCrimson,
+                        imageVector = when (playerDisplayMode) {
+                            PlayerDisplayMode.VIDEO -> Icons.Default.Tv
+                            PlayerDisplayMode.VINYL -> Icons.Default.Album
+                            PlayerDisplayMode.COMPACT -> Icons.Default.UnfoldMore
+                        },
+                        contentDescription = "Player Mode",
+                        tint = if (playerDisplayMode == PlayerDisplayMode.COMPACT) DemonicCrimson else DemonicTextPrimary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
             }
 
-            // Visual Centerpiece: 16:9 YouTube Player or Vinyl Disc
+            // Visual Centerpiece: 16:9 YouTube Player or Vinyl Disc or Compact Mini-Bar
+            val isCompact = (playerDisplayMode == PlayerDisplayMode.COMPACT)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
+                    .height(if (isCompact) 64.dp else 200.dp)
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
                 val hasVideo = !uiState.room?.videoId.isNullOrEmpty()
 
-                // Persistent YouTubePlayerView (keeps WebView alive and playing in both modes)
+                // Persistent YouTubePlayerView (keeps WebView alive and playing across all modes)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.Black)
                         .border(1.dp, DemonicSurfaceVariant, RoundedCornerShape(16.dp))
-                        .alpha(if (showPlayerVideo && hasVideo) 1f else 0.001f)
+                        .alpha(if (playerDisplayMode == PlayerDisplayMode.VIDEO && hasVideo) 1f else 0.001f)
                 ) {
                     AndroidView(
                         factory = { ctx ->
@@ -468,7 +589,7 @@ fun RoomScreen(
                 }
 
                 // Vinyl Disc View Overlay
-                if (hasVideo && !showPlayerVideo) {
+                if (hasVideo && playerDisplayMode == PlayerDisplayMode.VINYL) {
                     VinylDisc(
                         videoId = uiState.room?.videoId ?: "",
                         isPlaying = uiState.room?.isPlaying ?: false,
@@ -476,61 +597,157 @@ fun RoomScreen(
                     )
                 }
 
+                // Compact Mini Player Bar
+                if (hasVideo && playerDisplayMode == PlayerDisplayMode.COMPACT) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(DemonicSurface)
+                            .border(1.dp, DemonicBorder, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AsyncImage(
+                            model = "https://img.youtube.com/vi/${uiState.room?.videoId}/hqdefault.jpg",
+                            contentDescription = "Thumbnail",
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(DemonicSurfaceVariant),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = uiState.room?.videoTitle ?: "Now Playing",
+                                color = DemonicTextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (uiState.room?.isPlaying == true) "Playing • ${formatSeconds(currentSecond)}" else "Paused",
+                                color = DemonicCrimson,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        if (uiState.canControlPlayback) {
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    viewModel.togglePlayPause()
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (uiState.room?.isPlaying == true) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = "Play/Pause",
+                                    tint = DemonicCrimson,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    viewModel.skipToNextTrack()
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SkipNext,
+                                    contentDescription = "Next Track",
+                                    tint = DemonicTextSecondary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Empty Track Placeholder (When no song is loaded in room)
                 if (!hasVideo) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(14.dp))
                             .background(
                                 Brush.verticalGradient(
                                     listOf(DemonicSurface, Color(0xFF0F0B15))
                                 )
                             )
-                            .border(1.dp, DemonicBorder, RoundedCornerShape(16.dp))
+                            .border(1.dp, DemonicBorder, RoundedCornerShape(14.dp))
                             .clickable { showSearchDialog = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(DemonicCrimson.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
+                        if (isCompact) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.GraphicEq,
                                     contentDescription = null,
                                     tint = DemonicCrimson,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "NO TRACK PLAYING • Tap to search",
+                                    color = DemonicTextSecondary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "NO TRACK PLAYING",
-                                color = DemonicTextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (uiState.canControlPlayback) "Tap here or search icon to play music" else "Waiting for host to pick a track...",
-                                color = DemonicTextMuted,
-                                fontSize = 11.sp
-                            )
+                        } else {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(DemonicCrimson.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.GraphicEq,
+                                        contentDescription = null,
+                                        tint = DemonicCrimson,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "NO TRACK PLAYING",
+                                    color = DemonicTextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (uiState.canControlPlayback) "Tap here or search icon to play music" else "Waiting for host to pick a track...",
+                                    color = DemonicTextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // Playback Controls & Progress Scrubber (Host or DJ)
-            if (uiState.canControlPlayback) {
+            // Playback Controls & Progress Scrubber (Host or DJ) - Hidden in Compact Mini-Player mode
+            if (uiState.canControlPlayback && playerDisplayMode != PlayerDisplayMode.COMPACT) {
                 var isDraggingSlider by remember { mutableStateOf(false) }
                 var sliderPosition by remember { mutableFloatStateOf(0f) }
                 val displayPosition = if (isDraggingSlider) sliderPosition else currentSecond
@@ -641,7 +858,7 @@ fun RoomScreen(
                         }
                     }
                 }
-            } else {
+            } else if (playerDisplayMode != PlayerDisplayMode.COMPACT) {
                 // Listener banner
                 Box(
                     modifier = Modifier
@@ -661,16 +878,18 @@ fun RoomScreen(
                 }
             }
 
-            // Member Avatars Row with Pass the Aux
-            MemberAvatarRow(
-                members = uiState.members,
-                djId = uiState.room?.djId,
-                isHostUser = uiState.isHost,
-                onPassAux = { targetUid ->
-                    viewModel.passTheAux(targetUid)
-                },
-                modifier = Modifier.padding(vertical = 4.dp)
-            )
+            // Member Avatars Row with Pass the Aux (Hidden in Compact mode for maximum chat space)
+            if (playerDisplayMode != PlayerDisplayMode.COMPACT) {
+                MemberAvatarRow(
+                    members = uiState.members,
+                    djId = uiState.room?.djId,
+                    isHostUser = uiState.isHost,
+                    onPassAux = { targetUid ->
+                        viewModel.passTheAux(targetUid)
+                    },
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
 
             // Live Chat Stream
             Box(
@@ -694,9 +913,9 @@ fun RoomScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        reverseLayout = false
                     ) {
-                        items(items = uiState.messages, key = { it.id }) { message ->
+                        items(uiState.messages, key = { it.id }) { message ->
                             val isOwnMessage = (message.senderId == currentUser?.uid)
                             ChatMessageItem(
                                 message = message,
@@ -783,6 +1002,34 @@ fun RoomScreen(
                 },
                 onUpvoteTrack = { itemId ->
                     viewModel.upvoteQueueItem(itemId)
+                }
+            )
+        }
+
+        // Live Members Bottom Sheet
+        if (showMembersSheet) {
+            MembersBottomSheet(
+                members = uiState.members,
+                currentUid = currentUser?.uid ?: "",
+                hostId = uiState.room?.hostId ?: "",
+                djId = uiState.room?.djId,
+                isHost = uiState.isHost,
+                onDismiss = { showMembersSheet = false },
+                onPassAux = { targetUid ->
+                    viewModel.passTheAux(targetUid)
+                }
+            )
+        }
+
+        // YouTube In-App Explorer Sheet (Host or DJ only)
+        if (showExplorerSheet && uiState.canControlPlayback) {
+            YouTubeExplorerSheet(
+                onDismiss = { showExplorerSheet = false },
+                onPlayNow = { videoId, title ->
+                    viewModel.playTrack(videoId, title)
+                },
+                onAddToQueue = { videoId, title ->
+                    viewModel.addToQueue(videoId, title)
                 }
             )
         }
