@@ -63,6 +63,7 @@ interface RoomRepository {
     suspend fun sendReaction(roomCode: String, reaction: LiveReaction): Result<Unit>
     suspend fun sendMessage(roomCode: String, user: UserAccount, text: String): Result<Unit>
     suspend fun setTyping(roomCode: String, uid: String, userName: String, isTyping: Boolean)
+    suspend fun deleteRoom(roomCode: String): Result<Unit>
 }
 @Singleton
 class FirebaseRoomRepository @Inject constructor(
@@ -364,6 +365,9 @@ class FirebaseRoomRepository @Inject constructor(
                         )
                         localFlow.value = room
                         trySend(room)
+                    } else {
+                        localFlow.value = null
+                        trySend(null)
                     }
                 }
                 override fun onCancelled(error: DatabaseError) {}
@@ -645,21 +649,15 @@ class FirebaseRoomRepository @Inject constructor(
         videoTitle: String?
     ): Result<Unit> {
         val upperCode = roomCode.trim().uppercase()
-        val current = localRooms[upperCode]?.value
-        val updated = current?.copy(
+        val current = localRooms[upperCode]?.value ?: return Result.success(Unit)
+        val updated = current.copy(
             state = state,
             position = positionSeconds,
             updatedAt = System.currentTimeMillis(),
             videoId = videoId ?: current.videoId,
             videoTitle = videoTitle ?: current.videoTitle
-        ) ?: Room(
-            roomCode = upperCode,
-            state = state,
-            position = positionSeconds,
-            updatedAt = System.currentTimeMillis(),
-            videoId = videoId ?: "dQw4w9WgXcQ"
         )
-        getOrCreateLocalRoom(upperCode).value = updated
+        localRooms[upperCode]?.value = updated
         updatePublicRoomsList()
 
         scope.launch {
@@ -677,6 +675,24 @@ class FirebaseRoomRepository @Inject constructor(
         }
 
         return Result.success(Unit)
+    }
+
+    override suspend fun deleteRoom(roomCode: String): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        localRooms.remove(upperCode)
+        localMembers.remove(upperCode)
+        localMessages.remove(upperCode)
+        localQueues.remove(upperCode)
+        localTyping.remove(upperCode)
+        localReactions.remove(upperCode)
+        updatePublicRoomsList()
+
+        return try {
+            database.getReference("rooms").child(upperCode).removeValue().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     override suspend fun passTheAux(roomCode: String, djUid: String): Result<Unit> {

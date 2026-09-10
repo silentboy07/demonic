@@ -90,8 +90,15 @@ fun OwnerControlBottomSheet(
     val maintenanceMode by ownerConfigManager.maintenanceMode.collectAsState()
     val globalAnnouncement by ownerConfigManager.globalAnnouncement.collectAsState()
 
+    val liveActiveRooms by ownerConfigManager.liveActiveRooms.collectAsState()
+    val liveActiveMembers by ownerConfigManager.liveActiveMembers.collectAsState()
+
     var announcementText by remember { mutableStateOf(globalAnnouncement ?: "") }
     var announcementSuccess by remember { mutableStateOf(false) }
+
+    var newPinInput by remember { mutableStateOf("") }
+    var changePinSuccess by remember { mutableStateOf(false) }
+    var changePinError by remember { mutableStateOf<String?>(null) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -198,13 +205,13 @@ fun OwnerControlBottomSheet(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "Enter Owner Master PIN",
+                        text = "Owner Authorization",
                         color = DemonicTextPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Default Master PIN is 7777",
+                        text = "Restricted Area • Authorized Master PIN Required",
                         color = DemonicTextMuted,
                         fontSize = 12.sp
                     )
@@ -219,7 +226,7 @@ fun OwnerControlBottomSheet(
                                 pinError = null
                             }
                         },
-                        placeholder = "Enter 4-digit PIN...",
+                        placeholder = "Enter Master PIN...",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                         modifier = Modifier.fillMaxWidth(0.7f)
                     )
@@ -251,7 +258,7 @@ fun OwnerControlBottomSheet(
                                     isUnlocked = true
                                     pinError = null
                                 } else {
-                                    pinError = "Incorrect PIN. Default is 7777"
+                                    pinError = "Access Denied: Incorrect PIN"
                                 }
                             },
                         contentAlignment = Alignment.Center
@@ -275,6 +282,81 @@ fun OwnerControlBottomSheet(
                         .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // SECTION 0: LIVE NETWORK TELEMETRY (Active Rooms & Members)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF1C152B), Color(0xFF13101E))
+                                )
+                            )
+                            .border(1.dp, DemonicSyncTeal.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                            .padding(14.dp)
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(DemonicSyncTeal)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "LIVE NETWORK MONITOR",
+                                    color = DemonicSyncTeal,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceAround
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "$liveActiveRooms",
+                                        color = DemonicTextPrimary,
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Text(
+                                        text = "Active Rooms",
+                                        color = DemonicTextMuted,
+                                        fontSize = 11.sp
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .width(1.dp)
+                                        .height(36.dp)
+                                        .background(DemonicBorder)
+                                )
+
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "$liveActiveMembers",
+                                        color = DemonicCrimson,
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Text(
+                                        text = "Live Listeners",
+                                        color = DemonicTextMuted,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // SECTION 1: MASTER ADS & MONETIZATION SWITCH
                     Box(
                         modifier = Modifier
@@ -545,6 +627,90 @@ fun OwnerControlBottomSheet(
                                 color = DemonicTextMuted,
                                 fontSize = 10.sp
                             )
+                        }
+                    }
+
+                    // SECTION 4: CHANGE MASTER PIN
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(DemonicSurface)
+                            .border(1.dp, DemonicBorder, RoundedCornerShape(14.dp))
+                            .padding(14.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Key,
+                                    contentDescription = null,
+                                    tint = DemonicWarningAmber,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "CHANGE MASTER PIN",
+                                    color = DemonicWarningAmber,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            DemonicTextField(
+                                value = newPinInput,
+                                onValueChange = {
+                                    if (it.length <= 8) {
+                                        newPinInput = it
+                                        changePinError = null
+                                        changePinSuccess = false
+                                    }
+                                },
+                                placeholder = "Enter new 4-8 digit PIN...",
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(38.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(DemonicWarningAmber)
+                                    .clickable {
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                        if (ownerConfigManager.setOwnerPin(newPinInput)) {
+                                            changePinSuccess = true
+                                            changePinError = null
+                                            newPinInput = ""
+                                        } else {
+                                            changePinError = "PIN must be between 4 and 8 digits."
+                                            changePinSuccess = false
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "UPDATE PIN",
+                                    color = Color.Black,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+
+                            if (changePinSuccess) {
+                                Text(
+                                    text = "✅ Master PIN updated successfully!",
+                                    color = DemonicSyncTeal,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            changePinError?.let {
+                                Text(
+                                    text = it,
+                                    color = DemonicErrorRed,
+                                    fontSize = 11.sp
+                                )
+                            }
                         }
                     }
 

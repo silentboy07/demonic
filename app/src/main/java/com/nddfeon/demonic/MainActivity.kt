@@ -48,6 +48,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val isInPipMode = androidx.compose.runtime.mutableStateOf(false)
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: android.content.res.Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        isInPipMode.value = isInPictureInPictureMode
+    }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (activeInRoom && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -159,6 +169,7 @@ class MainActivity : ComponentActivity() {
                             RoomScreen(
                                 viewModel = roomViewModel,
                                 searchManager = app.youTubeSearchManager,
+                                isInPip = isInPipMode.value,
                                 onNavigateBack = {
                                     navController.popBackStack()
                                 }

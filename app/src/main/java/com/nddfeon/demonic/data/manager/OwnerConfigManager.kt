@@ -41,6 +41,13 @@ class OwnerConfigManager @Inject constructor(
     private val _ownerPin = MutableStateFlow(prefs.getString("owner_pin", "7777") ?: "7777")
     val ownerPin: StateFlow<String> = _ownerPin.asStateFlow()
 
+    // Live Telemetry Stats for Owner
+    private val _liveActiveRooms = MutableStateFlow(0)
+    val liveActiveRooms: StateFlow<Int> = _liveActiveRooms.asStateFlow()
+
+    private val _liveActiveMembers = MutableStateFlow(0)
+    val liveActiveMembers: StateFlow<Int> = _liveActiveMembers.asStateFlow()
+
     init {
         // Sync with Firebase Remote Config /app_config if connected
         try {
@@ -57,6 +64,31 @@ class OwnerConfigManager @Inject constructor(
                             _globalAnnouncement.value = announcement
                             prefs.edit().putString("global_announcement", announcement).apply()
                         }
+                        val remotePin = snapshot.child("owner_pin").getValue(String::class.java)
+                        if (!remotePin.isNullOrBlank() && remotePin != _ownerPin.value) {
+                            _ownerPin.value = remotePin
+                            prefs.edit().putString("owner_pin", remotePin).apply()
+                        }
+                    }
+                }
+                override fun onCancelled(error: DatabaseError) {}
+            })
+        } catch (_: Exception) {}
+
+        // Listen for Realtime Network Telemetry (Active Rooms & Connected Listeners)
+        try {
+            database?.getReference("rooms")?.addValueEventListener(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    if (snapshot.exists()) {
+                        _liveActiveRooms.value = snapshot.childrenCount.toInt()
+                        var totalMembers = 0
+                        for (roomSnap in snapshot.children) {
+                            totalMembers += roomSnap.child("members").childrenCount.toInt()
+                        }
+                        _liveActiveMembers.value = totalMembers
+                    } else {
+                        _liveActiveRooms.value = 0
+                        _liveActiveMembers.value = 0
                     }
                 }
                 override fun onCancelled(error: DatabaseError) {}
@@ -66,7 +98,7 @@ class OwnerConfigManager @Inject constructor(
 
     fun verifyPin(inputPin: String): Boolean {
         val trimmed = inputPin.trim()
-        return trimmed == _ownerPin.value || trimmed == "7777"
+        return trimmed == _ownerPin.value
     }
 
     fun setAdsEnabled(enabled: Boolean) {
@@ -110,6 +142,7 @@ class OwnerConfigManager @Inject constructor(
         if (trimmed.length in 4..8) {
             _ownerPin.value = trimmed
             prefs.edit().putString("owner_pin", trimmed).apply()
+            pushToFirebase("owner_pin", trimmed)
             return true
         }
         return false

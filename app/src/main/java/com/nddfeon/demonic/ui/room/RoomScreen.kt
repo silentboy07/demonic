@@ -103,6 +103,7 @@ import com.nddfeon.demonic.ui.theme.DemonicBackground
 import com.nddfeon.demonic.ui.theme.DemonicBorder
 import com.nddfeon.demonic.ui.theme.DemonicCrimson
 import com.nddfeon.demonic.ui.theme.DemonicCrimsonDark
+import com.nddfeon.demonic.ui.theme.DemonicErrorRed
 import com.nddfeon.demonic.ui.theme.DemonicSurface
 import com.nddfeon.demonic.ui.theme.DemonicSurfaceVariant
 import com.nddfeon.demonic.ui.theme.DemonicTextMuted
@@ -115,6 +116,9 @@ import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFram
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 import kotlinx.coroutines.launch
 
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
+
 enum class PlayerDisplayMode {
     VIDEO,
     VINYL,
@@ -126,12 +130,20 @@ fun RoomScreen(
     viewModel: RoomViewModel,
     searchManager: YouTubeSearchManager,
     onNavigateBack: () -> Unit,
+    isInPip: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val view = LocalView.current
     val uiState by viewModel.uiState.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
+
+    // Auto navigate back when room is closed/deleted
+    LaunchedEffect(uiState.isRoomClosed) {
+        if (uiState.isRoomClosed) {
+            onNavigateBack()
+        }
+    }
 
     val currentSecond by viewModel.playerManager.currentSecond.collectAsState()
     val duration by viewModel.playerManager.duration.collectAsState()
@@ -212,135 +224,159 @@ fun RoomScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .imePadding()
+                .then(
+                    if (!isInPip) Modifier
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                        .imePadding()
+                    else Modifier
+                )
         ) {
-            // Header Navigation Bar (Row 1: Clean, Never Overflows)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                            viewModel.leaveRoom()
-                            onNavigateBack()
-                        },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Leave Room",
-                            tint = DemonicTextPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    Column {
-                        Text(
-                            text = "ROOM ${uiState.roomCode}",
-                            color = DemonicCrimson,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = when {
-                                uiState.isHost -> "HOST 👑"
-                                uiState.isDj -> "DJ 🎧"
-                                else -> "LISTENER"
-                            },
-                            color = when {
-                                uiState.isHost -> DemonicWarningAmber
-                                uiState.isDj -> DemonicViolet
-                                else -> DemonicTextMuted
-                            },
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
+            if (!isInPip) {
+                // Header Navigation Bar (Row 1: Clean, Never Overflows)
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    SyncStatusBadge(
-                        driftSeconds = uiState.driftSeconds,
-                        isSyncing = uiState.isSyncing
-                    )
-
-                    // Live Member Count Badge -> Opens MembersBottomSheet
-                    Box(
-                        modifier = Modifier
-                            .height(34.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(DemonicSurfaceVariant)
-                            .border(1.dp, DemonicBorder, RoundedCornerShape(10.dp))
-                            .clickable {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                showMembersSheet = true
-                            }
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                viewModel.leaveRoom()
+                                onNavigateBack()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.People,
-                                contentDescription = "Members",
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Leave Room",
                                 tint = DemonicTextPrimary,
-                                modifier = Modifier.size(15.dp)
+                                modifier = Modifier.size(20.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Column {
                             Text(
-                                text = "${uiState.members.size}",
-                                color = DemonicTextPrimary,
-                                fontSize = 12.sp,
+                                text = "ROOM ${uiState.roomCode}",
+                                color = DemonicCrimson,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = when {
+                                    uiState.isHost -> "HOST 👑"
+                                    uiState.isDj -> "DJ 🎧"
+                                    else -> "LISTENER"
+                                },
+                                color = when {
+                                    uiState.isHost -> DemonicWarningAmber
+                                    uiState.isDj -> DemonicViolet
+                                    else -> DemonicTextMuted
+                                },
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
 
-                    IconButton(
-                        onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_SUBJECT, "Join my DEMONIC synchronized music room!")
-                                putExtra(
-                                    Intent.EXTRA_TEXT,
-                                    "Join my synchronized room on DEMONIC with code: ${uiState.roomCode}\n\nDeep Link: demonic://room/${uiState.roomCode}"
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SyncStatusBadge(
+                            driftSeconds = uiState.driftSeconds,
+                            isSyncing = uiState.isSyncing
+                        )
+
+                        // Live Member Count Badge -> Opens MembersBottomSheet
+                        Box(
+                            modifier = Modifier
+                                .height(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(DemonicSurfaceVariant)
+                                .border(1.dp, DemonicBorder, RoundedCornerShape(10.dp))
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    showMembersSheet = true
+                                }
+                                .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.People,
+                                    contentDescription = "Members",
+                                    tint = DemonicTextPrimary,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "${uiState.members.size}",
+                                    color = DemonicTextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Room Code"))
-                        },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = "Share",
-                            tint = DemonicTextPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "Join my DEMONIC synchronized music room!")
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "Join my synchronized room on DEMONIC with code: ${uiState.roomCode}\n\nDeep Link: demonic://room/${uiState.roomCode}"
+                                    )
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "Share Room Code"))
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Share",
+                                tint = DemonicTextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        // Host End & Delete Room Button
+                        if (uiState.isHost) {
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                    viewModel.deleteRoom()
+                                    onNavigateBack()
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "End & Delete Room",
+                                    tint = DemonicErrorRed,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
-            // Quick Action Bar (Row 2: Search, Queue with badge, YouTube Explorer, and 3-Mode Toggle)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+                // Quick Action Bar (Row 2: Search, Queue with badge, YouTube Explorer, and 3-Mode Toggle)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                 // Demonic Music Hub & Search Pill Button (Opens Native Music Hub)
                 Row(
                     modifier = Modifier
@@ -437,27 +473,28 @@ fun RoomScreen(
                     )
                 }
             }
+        }
 
-            // Visual Centerpiece: 16:9 YouTube Player or Vinyl Disc or Compact Mini-Bar
-            val isCompact = (playerDisplayMode == PlayerDisplayMode.COMPACT)
+        // Visual Centerpiece: 16:9 YouTube Player or Vinyl Disc or Compact Mini-Bar
+        val isCompact = (playerDisplayMode == PlayerDisplayMode.COMPACT)
+        Box(
+            modifier = if (isInPip) Modifier.fillMaxSize() else Modifier
+                .fillMaxWidth()
+                .height(if (isCompact) 64.dp else 200.dp)
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            val hasVideo = !uiState.room?.videoId.isNullOrEmpty()
+
+            // Persistent YouTubePlayerView (keeps WebView alive and playing across all modes)
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(if (isCompact) 64.dp else 200.dp)
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxSize()
+                    .clip(if (isInPip) RoundedCornerShape(0.dp) else RoundedCornerShape(16.dp))
+                    .background(Color.Black)
+                    .then(if (!isInPip) Modifier.border(1.dp, DemonicSurfaceVariant, RoundedCornerShape(16.dp)) else Modifier)
+                    .alpha(if ((isInPip || playerDisplayMode == PlayerDisplayMode.VIDEO) && hasVideo) 1f else 0.001f)
             ) {
-                val hasVideo = !uiState.room?.videoId.isNullOrEmpty()
-
-                // Persistent YouTubePlayerView (keeps WebView alive and playing across all modes)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.Black)
-                        .border(1.dp, DemonicSurfaceVariant, RoundedCornerShape(16.dp))
-                        .alpha(if (playerDisplayMode == PlayerDisplayMode.VIDEO && hasVideo) 1f else 0.001f)
-                ) {
                     AndroidView(
                         factory = { ctx ->
                             YouTubePlayerView(ctx).apply {
@@ -564,7 +601,7 @@ fun RoomScreen(
                 }
 
                 // Vinyl Disc View Overlay
-                if (hasVideo && playerDisplayMode == PlayerDisplayMode.VINYL) {
+                if (!isInPip && hasVideo && playerDisplayMode == PlayerDisplayMode.VINYL) {
                     VinylDisc(
                         videoId = uiState.room?.videoId ?: "",
                         isPlaying = uiState.room?.isPlaying ?: false,
@@ -573,7 +610,7 @@ fun RoomScreen(
                 }
 
                 // Compact Mini Player Bar
-                if (hasVideo && playerDisplayMode == PlayerDisplayMode.COMPACT) {
+                if (!isInPip && hasVideo && playerDisplayMode == PlayerDisplayMode.COMPACT) {
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
@@ -721,266 +758,270 @@ fun RoomScreen(
                 }
             }
 
-            // Playback Controls & Progress Scrubber (Host or DJ) - Hidden in Compact Mini-Player mode
-            if (uiState.canControlPlayback && playerDisplayMode != PlayerDisplayMode.COMPACT) {
-                var isDraggingSlider by remember { mutableStateOf(false) }
-                var sliderPosition by remember { mutableFloatStateOf(0f) }
-                val displayPosition = if (isDraggingSlider) sliderPosition else currentSecond
-                val hasDuration = duration > 0f
-                val safeDuration = if (hasDuration) duration else 1f
+            if (!isInPip) {
+                // Playback Controls & Progress Scrubber (Host or DJ) - Hidden in Compact Mini-Player mode
+                if (uiState.canControlPlayback && playerDisplayMode != PlayerDisplayMode.COMPACT) {
+                    var isDraggingSlider by remember { mutableStateOf(false) }
+                    var sliderPosition by remember { mutableFloatStateOf(0f) }
+                    val displayPosition = if (isDraggingSlider) sliderPosition else currentSecond
+                    val hasDuration = duration > 0f
+                    val safeDuration = if (hasDuration) duration else 1f
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 2.dp)
-                ) {
-                    Slider(
-                        value = if (hasDuration) displayPosition.coerceIn(0f, safeDuration) else 0f,
-                        onValueChange = {
-                            if (hasDuration) {
-                                isDraggingSlider = true
-                                sliderPosition = it
-                            }
-                        },
-                        onValueChangeFinished = {
-                            if (hasDuration) {
-                                isDraggingSlider = false
-                                viewModel.hostSeekTo(sliderPosition)
-                            }
-                        },
-                        enabled = hasDuration,
-                        valueRange = 0f..safeDuration,
-                        colors = SliderDefaults.colors(
-                            thumbColor = if (hasDuration) DemonicCrimson else Color.Transparent,
-                            activeTrackColor = DemonicCrimson,
-                            inactiveTrackColor = Color(0xFF2B2238),
-                            disabledThumbColor = Color.Transparent,
-                            disabledActiveTrackColor = DemonicSurfaceVariant,
-                            disabledInactiveTrackColor = Color(0xFF2B2238)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 2.dp)
                     ) {
-                        Text(
-                            text = "${formatSeconds(displayPosition)} / ${if (hasDuration) formatSeconds(duration) else "--:--"}",
-                            color = DemonicTextMuted,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
+                        Slider(
+                            value = if (hasDuration) displayPosition.coerceIn(0f, safeDuration) else 0f,
+                            onValueChange = {
+                                if (hasDuration) {
+                                    isDraggingSlider = true
+                                    sliderPosition = it
+                                }
+                            },
+                            onValueChangeFinished = {
+                                if (hasDuration) {
+                                    isDraggingSlider = false
+                                    viewModel.hostSeekTo(sliderPosition)
+                                }
+                            },
+                            enabled = hasDuration,
+                            valueRange = 0f..safeDuration,
+                            colors = SliderDefaults.colors(
+                                thumbColor = if (hasDuration) DemonicCrimson else Color.Transparent,
+                                activeTrackColor = DemonicCrimson,
+                                inactiveTrackColor = Color(0xFF2B2238),
+                                disabledThumbColor = Color.Transparent,
+                                disabledActiveTrackColor = DemonicSurfaceVariant,
+                                disabledInactiveTrackColor = Color(0xFF2B2238)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         )
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    viewModel.hostSeekTo((currentSecond - 10f).coerceAtLeast(0f))
-                                },
-                                enabled = hasDuration
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.FastRewind,
-                                    contentDescription = "Rewind 10s",
-                                    tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
-                                )
-                            }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${formatSeconds(displayPosition)} / ${if (hasDuration) formatSeconds(duration) else "--:--"}",
+                                color = DemonicTextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
 
-                            Spacer(modifier = Modifier.width(6.dp))
-
-                            val isPlaying = uiState.room?.isPlaying ?: false
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .shadow(12.dp, CircleShape, spotColor = DemonicCrimson)
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(DemonicCrimson, DemonicCrimsonDark)
-                                        )
-                                    )
-                                    .clickable {
-                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                        viewModel.togglePlayPause()
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        viewModel.hostSeekTo((currentSecond - 10f).coerceAtLeast(0f))
                                     },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    contentDescription = if (isPlaying) "Pause" else "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
+                                    enabled = hasDuration
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FastRewind,
+                                        contentDescription = "Rewind 10s",
+                                        tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
+                                    )
+                                }
 
-                            Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
 
-                            IconButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    viewModel.hostSeekTo((currentSecond + 10f).coerceAtMost(safeDuration))
-                                },
-                                enabled = hasDuration
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.FastForward,
-                                    contentDescription = "Forward 10s",
-                                    tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
-                                )
+                                val isPlaying = uiState.room?.isPlaying ?: false
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .shadow(12.dp, CircleShape, spotColor = DemonicCrimson)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.linearGradient(
+                                                listOf(DemonicCrimson, DemonicCrimsonDark)
+                                            )
+                                        )
+                                        .clickable {
+                                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                            viewModel.togglePlayPause()
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = if (isPlaying) "Pause" else "Play",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(6.dp))
+
+                                IconButton(
+                                    onClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        viewModel.hostSeekTo((currentSecond + 10f).coerceAtMost(safeDuration))
+                                    },
+                                    enabled = hasDuration
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FastForward,
+                                        contentDescription = "Forward 10s",
+                                        tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Live Chat Stream
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                if (uiState.messages.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No messages yet. Say hi to the room! 🔥",
-                            color = DemonicTextMuted.copy(alpha = 0.6f),
-                            fontSize = 12.sp
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        reverseLayout = false
-                    ) {
-                        items(uiState.messages, key = { it.id }) { message ->
-                            val isOwnMessage = (message.senderId == currentUser?.uid)
-                            ChatMessageItem(
-                                message = message,
-                                isOwnMessage = isOwnMessage
+                // Live Chat Stream
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    if (uiState.messages.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No messages yet. Say hi to the room! 🔥",
+                                color = DemonicTextMuted.copy(alpha = 0.6f),
+                                fontSize = 12.sp
                             )
                         }
+                    } else {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            reverseLayout = false
+                        ) {
+                            items(uiState.messages, key = { it.id }) { message ->
+                                val isOwnMessage = (message.senderId == currentUser?.uid)
+                                ChatMessageItem(
+                                    message = message,
+                                    isOwnMessage = isOwnMessage
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
-            // Typing Indicator Bubble
-            AnimatedVisibility(
-                visible = uiState.typingUsers.isNotEmpty(),
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                TypingIndicatorBubble(
-                    typingUsers = uiState.typingUsers,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
+                // Typing Indicator Bubble
+                AnimatedVisibility(
+                    visible = uiState.typingUsers.isNotEmpty(),
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    TypingIndicatorBubble(
+                        typingUsers = uiState.typingUsers,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
+                    )
+                }
+
+                // Reaction bar + Chat Input Bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ReactionButtonBar(
+                        onSendReaction = { emoji ->
+                            viewModel.sendReaction(emoji)
+                        }
+                    )
+                }
+
+                ChatInputBar(
+                    value = uiState.chatInput,
+                    onValueChange = { viewModel.updateChatInput(it) },
+                    onSend = { viewModel.sendChatMessage() },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+            }
+        }
+
+        if (!isInPip) {
+            // Floating Live Reactions Overlay
+            FloatingReactionsOverlay(
+                activeReactions = uiState.activeReactions,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // YouTube Search Dialog
+            if (showSearchDialog) {
+                YouTubeSearchDialog(
+                    searchManager = searchManager,
+                    canControlPlayback = uiState.canControlPlayback,
+                    onDismiss = { showSearchDialog = false },
+                    onPlayNow = { videoId, title ->
+                        viewModel.playTrack(videoId, title)
+                    },
+                    onAddToQueue = { videoId, title ->
+                        viewModel.addToQueue(videoId, title)
+                    }
                 )
             }
 
-            // Reaction bar + Chat Input Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ReactionButtonBar(
-                    onSendReaction = { emoji ->
-                        viewModel.sendReaction(emoji)
+            // Playlist / Up Next Bottom Sheet
+            if (showQueueSheet) {
+                QueueBottomSheet(
+                    queue = uiState.queue,
+                    currentVideoTitle = uiState.room?.videoTitle ?: "",
+                    currentVideoId = uiState.room?.videoId ?: "",
+                    canControlPlayback = uiState.canControlPlayback,
+                    currentUid = currentUser?.uid ?: "",
+                    onDismiss = { showQueueSheet = false },
+                    onOpenSearch = { showExplorerSheet = true },
+                    onPlayTrack = { track ->
+                        viewModel.playQueueItem(track)
+                    },
+                    onRemoveTrack = { itemId ->
+                        viewModel.removeFromQueue(itemId)
+                    },
+                    onMoveTrack = { from, to ->
+                        viewModel.reorderQueue(from, to)
+                    },
+                    onUpvoteTrack = { itemId ->
+                        viewModel.upvoteQueueItem(itemId)
                     }
                 )
             }
 
-            ChatInputBar(
-                value = uiState.chatInput,
-                onValueChange = { viewModel.updateChatInput(it) },
-                onSend = { viewModel.sendChatMessage() },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-            )
-        }
+            // Live Members Bottom Sheet
+            if (showMembersSheet) {
+                MembersBottomSheet(
+                    members = uiState.members,
+                    currentUid = currentUser?.uid ?: "",
+                    hostId = uiState.room?.hostId ?: "",
+                    djId = uiState.room?.djId,
+                    isHost = uiState.isHost,
+                    onDismiss = { showMembersSheet = false },
+                    onPassAux = { targetUid ->
+                        viewModel.passTheAux(targetUid)
+                    }
+                )
+            }
 
-        // Floating Live Reactions Overlay
-        FloatingReactionsOverlay(
-            activeReactions = uiState.activeReactions,
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // YouTube Search Dialog
-        if (showSearchDialog) {
-            YouTubeSearchDialog(
-                searchManager = searchManager,
-                canControlPlayback = uiState.canControlPlayback,
-                onDismiss = { showSearchDialog = false },
-                onPlayNow = { videoId, title ->
-                    viewModel.playTrack(videoId, title)
-                },
-                onAddToQueue = { videoId, title ->
-                    viewModel.addToQueue(videoId, title)
-                }
-            )
-        }
-
-        // Playlist / Up Next Bottom Sheet
-        if (showQueueSheet) {
-            QueueBottomSheet(
-                queue = uiState.queue,
-                currentVideoTitle = uiState.room?.videoTitle ?: "",
-                currentVideoId = uiState.room?.videoId ?: "",
-                canControlPlayback = uiState.canControlPlayback,
-                currentUid = currentUser?.uid ?: "",
-                onDismiss = { showQueueSheet = false },
-                onOpenSearch = { showExplorerSheet = true },
-                onPlayTrack = { track ->
-                    viewModel.playQueueItem(track)
-                },
-                onRemoveTrack = { itemId ->
-                    viewModel.removeFromQueue(itemId)
-                },
-                onMoveTrack = { from, to ->
-                    viewModel.reorderQueue(from, to)
-                },
-                onUpvoteTrack = { itemId ->
-                    viewModel.upvoteQueueItem(itemId)
-                }
-            )
-        }
-
-        // Live Members Bottom Sheet
-        if (showMembersSheet) {
-            MembersBottomSheet(
-                members = uiState.members,
-                currentUid = currentUser?.uid ?: "",
-                hostId = uiState.room?.hostId ?: "",
-                djId = uiState.room?.djId,
-                isHost = uiState.isHost,
-                onDismiss = { showMembersSheet = false },
-                onPassAux = { targetUid ->
-                    viewModel.passTheAux(targetUid)
-                }
-            )
-        }
-
-        // Demonic Music Hub Sheet (Zero-Search Picks, Playlist Auto-Queue, Native Playback)
-        if (showExplorerSheet) {
-            YouTubeExplorerSheet(
-                searchManager = searchManager,
-                canControlPlayback = uiState.canControlPlayback,
-                onDismiss = { showExplorerSheet = false },
-                onPlayNow = { videoId, title ->
-                    viewModel.playTrack(videoId, title)
-                },
-                onAddToQueue = { videoId, title ->
-                    viewModel.addToQueue(videoId, title)
-                },
-                onImportPlaylistOrLink = { input, onProgress, onSuccess, onError ->
-                    viewModel.importPlaylistOrLink(input, onProgress, onSuccess, onError)
-                }
-            )
+            // Demonic Music Hub Sheet (Zero-Search Picks, Playlist Auto-Queue, Native Playback)
+            if (showExplorerSheet) {
+                YouTubeExplorerSheet(
+                    searchManager = searchManager,
+                    canControlPlayback = uiState.canControlPlayback,
+                    onDismiss = { showExplorerSheet = false },
+                    onPlayNow = { videoId, title ->
+                        viewModel.playTrack(videoId, title)
+                    },
+                    onAddToQueue = { videoId, title ->
+                        viewModel.addToQueue(videoId, title)
+                    },
+                    onImportPlaylistOrLink = { input, onProgress, onSuccess, onError ->
+                        viewModel.importPlaylistOrLink(input, onProgress, onSuccess, onError)
+                    }
+                )
+            }
         }
     }
 }

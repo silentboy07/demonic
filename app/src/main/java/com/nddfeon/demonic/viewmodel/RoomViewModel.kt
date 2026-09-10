@@ -44,6 +44,7 @@ data class RoomUiState(
     val driftSeconds: Float = 0f,
     val videoInput: String = "",
     val chatInput: String = "",
+    val isRoomClosed: Boolean = false,
     val errorMessage: String? = null
 )
 
@@ -100,7 +101,17 @@ class RoomViewModel @Inject constructor(
     private fun observeRoomState() {
         viewModelScope.launch {
             roomRepository.observeRoom(roomCode).collect { room ->
-                if (room == null) return@collect
+                if (room == null) {
+                    if (lastKnownRoom != null) {
+                        _uiState.value = _uiState.value.copy(
+                            room = null,
+                            isRoomClosed = true,
+                            errorMessage = "Room has been ended."
+                        )
+                        playerManager.pause()
+                    }
+                    return@collect
+                }
                 val currentUid = getEffectiveUser().uid
                 val isHost = (room.hostId == currentUid || room.hostId.isEmpty() || (room.hostId.startsWith("guest_") && currentUid.startsWith("guest_")))
                 val isDj = (room.djId == currentUid)
@@ -552,6 +563,12 @@ class RoomViewModel @Inject constructor(
         val user = getEffectiveUser()
         viewModelScope.launch {
             roomRepository.leaveRoom(roomCode, user.uid)
+        }
+    }
+
+    fun deleteRoom() {
+        viewModelScope.launch {
+            roomRepository.deleteRoom(roomCode)
         }
     }
 
