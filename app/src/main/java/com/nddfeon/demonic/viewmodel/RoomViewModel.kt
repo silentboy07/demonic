@@ -298,7 +298,7 @@ class RoomViewModel @Inject constructor(
         viewModelScope.launch {
             roomRepository.observeReactions(roomCode).collect { reaction ->
                 val current = _uiState.value.activeReactions
-                _uiState.value = _uiState.value.copy(activeReactions = current + reaction)
+                _uiState.value = _uiState.value.copy(activeReactions = (current + reaction).takeLast(20))
             }
         }
     }
