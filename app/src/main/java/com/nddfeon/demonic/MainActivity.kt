@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic
+package com.nddfeon.demonic
 
 import android.app.PictureInPictureParams
 import android.os.Build
@@ -37,6 +37,15 @@ class MainActivity : ComponentActivity() {
 
     fun setActiveInRoom(active: Boolean) {
         activeInRoom = active
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .setAutoEnterEnabled(active)
+                    .build()
+                setPictureInPictureParams(params)
+            } catch (_: Exception) {}
+        }
     }
 
     override fun onUserLeaveHint() {

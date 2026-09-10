@@ -48,6 +48,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -122,13 +124,17 @@ fun RoomScreen(
 
     DisposableEffect(lifecycleOwner, playerViewRef) {
         val playerView = playerViewRef
-        if (playerView != null) {
-            lifecycleOwner.lifecycle.addObserver(playerView)
-        }
-        onDispose {
-            if (playerView != null) {
-                lifecycleOwner.lifecycle.removeObserver(playerView)
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_DESTROY) {
+                playerView?.release()
+                viewModel.playerManager.release()
             }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            playerView?.release()
+            viewModel.playerManager.release()
         }
     }
 
