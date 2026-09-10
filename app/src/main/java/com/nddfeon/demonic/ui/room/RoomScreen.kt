@@ -145,9 +145,6 @@ fun RoomScreen(
         }
     }
 
-    val currentSecond by viewModel.playerManager.currentSecond.collectAsState()
-    val duration by viewModel.playerManager.duration.collectAsState()
-
     var playerDisplayMode by remember { mutableStateOf(PlayerDisplayMode.VIDEO) }
     var showSearchDialog by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
@@ -643,11 +640,9 @@ fun RoomScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = if (uiState.room?.isPlaying == true) "Playing • ${formatSeconds(currentSecond)}" else "Paused",
-                                color = DemonicCrimson,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
+                            CompactPlaybackStatusText(
+                                playerManager = viewModel.playerManager,
+                                isPlaying = (uiState.room?.isPlaying == true)
                             )
                         }
                         if (uiState.canControlPlayback) {
@@ -761,116 +756,10 @@ fun RoomScreen(
             if (!isInPip) {
                 // Playback Controls & Progress Scrubber (Host or DJ) - Hidden in Compact Mini-Player mode
                 if (uiState.canControlPlayback && playerDisplayMode != PlayerDisplayMode.COMPACT) {
-                    var isDraggingSlider by remember { mutableStateOf(false) }
-                    var sliderPosition by remember { mutableFloatStateOf(0f) }
-                    val displayPosition = if (isDraggingSlider) sliderPosition else currentSecond
-                    val hasDuration = duration > 0f
-                    val safeDuration = if (hasDuration) duration else 1f
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 2.dp)
-                    ) {
-                        Slider(
-                            value = if (hasDuration) displayPosition.coerceIn(0f, safeDuration) else 0f,
-                            onValueChange = {
-                                if (hasDuration) {
-                                    isDraggingSlider = true
-                                    sliderPosition = it
-                                }
-                            },
-                            onValueChangeFinished = {
-                                if (hasDuration) {
-                                    isDraggingSlider = false
-                                    viewModel.hostSeekTo(sliderPosition)
-                                }
-                            },
-                            enabled = hasDuration,
-                            valueRange = 0f..safeDuration,
-                            colors = SliderDefaults.colors(
-                                thumbColor = if (hasDuration) DemonicCrimson else Color.Transparent,
-                                activeTrackColor = DemonicCrimson,
-                                inactiveTrackColor = Color(0xFF2B2238),
-                                disabledThumbColor = Color.Transparent,
-                                disabledActiveTrackColor = DemonicSurfaceVariant,
-                                disabledInactiveTrackColor = Color(0xFF2B2238)
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${formatSeconds(displayPosition)} / ${if (hasDuration) formatSeconds(duration) else "--:--"}",
-                                color = DemonicTextMuted,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(
-                                    onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        viewModel.hostSeekTo((currentSecond - 10f).coerceAtLeast(0f))
-                                    },
-                                    enabled = hasDuration
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.FastRewind,
-                                        contentDescription = "Rewind 10s",
-                                        tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(6.dp))
-
-                                val isPlaying = uiState.room?.isPlaying ?: false
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .shadow(12.dp, CircleShape, spotColor = DemonicCrimson)
-                                        .clip(CircleShape)
-                                        .background(
-                                            Brush.linearGradient(
-                                                listOf(DemonicCrimson, DemonicCrimsonDark)
-                                            )
-                                        )
-                                        .clickable {
-                                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                            viewModel.togglePlayPause()
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = if (isPlaying) "Pause" else "Play",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(6.dp))
-
-                                IconButton(
-                                    onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        viewModel.hostSeekTo((currentSecond + 10f).coerceAtMost(safeDuration))
-                                    },
-                                    enabled = hasDuration
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.FastForward,
-                                        contentDescription = "Forward 10s",
-                                        tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    RoomPlaybackControlsSection(
+                        viewModel = viewModel,
+                        isPlaying = uiState.room?.isPlaying ?: false
+                    )
                 }
 
                 // Live Chat Stream
@@ -1031,4 +920,141 @@ private fun formatSeconds(seconds: Float): String {
     val minutes = totalSeconds / 60
     val remSeconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, remSeconds)
+}
+
+@Composable
+private fun CompactPlaybackStatusText(
+    playerManager: com.nddfeon.demonic.player.YouTubePlayerManager,
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val currentSecond by playerManager.currentSecond.collectAsState()
+    Text(
+        text = if (isPlaying) "Playing • ${formatSeconds(currentSecond)}" else "Paused",
+        color = DemonicCrimson,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun RoomPlaybackControlsSection(
+    viewModel: RoomViewModel,
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val currentSecond by viewModel.playerManager.currentSecond.collectAsState()
+    val duration by viewModel.playerManager.duration.collectAsState()
+    val view = LocalView.current
+
+    var isDraggingSlider by remember { mutableStateOf(false) }
+    var sliderPosition by remember { mutableFloatStateOf(0f) }
+    val displayPosition = if (isDraggingSlider) sliderPosition else currentSecond
+    val hasDuration = duration > 0f
+    val safeDuration = if (hasDuration) duration else 1f
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp)
+    ) {
+        Slider(
+            value = if (hasDuration) displayPosition.coerceIn(0f, safeDuration) else 0f,
+            onValueChange = {
+                if (hasDuration) {
+                    isDraggingSlider = true
+                    sliderPosition = it
+                }
+            },
+            onValueChangeFinished = {
+                if (hasDuration) {
+                    isDraggingSlider = false
+                    viewModel.hostSeekTo(sliderPosition)
+                }
+            },
+            enabled = hasDuration,
+            valueRange = 0f..safeDuration,
+            colors = SliderDefaults.colors(
+                thumbColor = if (hasDuration) DemonicCrimson else Color.Transparent,
+                activeTrackColor = DemonicCrimson,
+                inactiveTrackColor = Color(0xFF2B2238),
+                disabledThumbColor = Color.Transparent,
+                disabledActiveTrackColor = DemonicSurfaceVariant,
+                disabledInactiveTrackColor = Color(0xFF2B2238)
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "${formatSeconds(displayPosition)} / ${if (hasDuration) formatSeconds(duration) else "--:--"}",
+                color = DemonicTextMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        viewModel.hostSeekTo((currentSecond - 10f).coerceAtLeast(0f))
+                    },
+                    enabled = hasDuration
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FastRewind,
+                        contentDescription = "Rewind 10s",
+                        tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .shadow(12.dp, CircleShape, spotColor = DemonicCrimson)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(DemonicCrimson, DemonicCrimsonDark)
+                            )
+                        )
+                        .clickable {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            viewModel.togglePlayPause()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                IconButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        viewModel.hostSeekTo((currentSecond + 10f).coerceAtMost(safeDuration))
+                    },
+                    enabled = hasDuration
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FastForward,
+                        contentDescription = "Forward 10s",
+                        tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
+                    )
+                }
+            }
+        }
+    }
 }

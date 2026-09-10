@@ -1,5 +1,6 @@
 package com.nddfeon.demonic.player
 
+import android.util.LruCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -30,7 +31,16 @@ class YouTubeSearchManager @Inject constructor() {
             "💪 Gym Phonk",
             "🌍 Global Top 50"
         )
+
+        // Precompiled static regex patterns for fast matching
+        private val PATTERN_YT_SEARCH = Pattern.compile("\"videoId\":\"([a-zA-Z0-9_-]{11})\".*?\"title\":\\{\"runs\":\\[\\{\"text\":\"([^\"]+)\"")
+        private val PATTERN_LOCKUP = Pattern.compile("\"contentId\":\"([a-zA-Z0-9_-]{11})\".*?\"title\":\\{\"content\":\"([^\"]+)\"")
+        private val PATTERN_ACCESSIBILITY = Pattern.compile("\"contentId\":\"([a-zA-Z0-9_-]{11})\".*?\"accessibilityContext\":\\{\"label\":\"([^\"]+)\"")
     }
+
+    // Ultra-fast in-memory cache for instant zero-latency responses
+    private val searchCache = LruCache<String, List<YouTubeSearchResult>>(150)
+    private val playlistCache = LruCache<String, List<YouTubeSearchResult>>(40)
 
     private val curatedPlaylists: Map<String, List<YouTubeSearchResult>> = mapOf(
         "🔥 Trending" to listOf(
@@ -93,6 +103,8 @@ class YouTubeSearchManager @Inject constructor() {
         val cleanPlaylistId = playlistId.trim()
         if (cleanPlaylistId.isEmpty()) return@withContext emptyList()
 
+        playlistCache.get(cleanPlaylistId)?.let { return@withContext it }
+
         try {
             val playlistUrl = "https://www.youtube.com/playlist?list=$cleanPlaylistId"
             val url = URL(playlistUrl)
@@ -117,9 +129,8 @@ class YouTubeSearchManager @Inject constructor() {
             val results = mutableListOf<YouTubeSearchResult>()
             val seenIds = mutableSetOf<String>()
 
-            // 1. YouTube lockup format: "contentId":"...","title":{"content":"..."
-            val lockupPattern = Pattern.compile("\"contentId\":\"([a-zA-Z0-9_-]{11})\".*?\"title\":\\{\"content\":\"([^\"]+)\"")
-            val matcher1 = lockupPattern.matcher(html)
+            // 1. YouTube lockup format
+            val matcher1 = PATTERN_LOCKUP.matcher(html)
             while (matcher1.find() && results.size < 50) {
                 val videoId = matcher1.group(1)
                 val rawTitle = matcher1.group(2)
@@ -134,10 +145,9 @@ class YouTubeSearchManager @Inject constructor() {
                 }
             }
 
-            // 2. Fallback: classic playlistVideoRenderer format
+            // 2. Fallback: classic search pattern
             if (results.isEmpty()) {
-                val runPattern = Pattern.compile("\"videoId\":\"([a-zA-Z0-9_-]{11})\".*?\"title\":\\{\"runs\":\\[\\{\"text\":\"([^\"]+)\"")
-                val matcher2 = runPattern.matcher(html)
+                val matcher2 = PATTERN_YT_SEARCH.matcher(html)
                 while (matcher2.find() && results.size < 50) {
                     val videoId = matcher2.group(1)
                     val rawTitle = matcher2.group(2)
@@ -155,8 +165,7 @@ class YouTubeSearchManager @Inject constructor() {
 
             // 3. Accessibility label fallback
             if (results.isEmpty()) {
-                val accessPattern = Pattern.compile("\"contentId\":\"([a-zA-Z0-9_-]{11})\".*?\"accessibilityContext\":\\{\"label\":\"([^\"]+)\"")
-                val matcher3 = accessPattern.matcher(html)
+                val matcher3 = PATTERN_ACCESSIBILITY.matcher(html)
                 while (matcher3.find() && results.size < 50) {
                     val videoId = matcher3.group(1)
                     val rawLabel = matcher3.group(2)
@@ -173,6 +182,9 @@ class YouTubeSearchManager @Inject constructor() {
                 }
             }
 
+            if (results.isNotEmpty()) {
+                playlistCache.put(cleanPlaylistId, results)
+            }
             results
         } catch (_: Exception) {
             emptyList()
@@ -185,11 +197,16 @@ class YouTubeSearchManager @Inject constructor() {
             return@withContext getTrending()
         }
 
+        // Check cache first for instant 0ms retrieval
+        val cacheKey = trimmed.lowercase()
+        searchCache.get(cacheKey)?.let { return@withContext it }
+
         // Check if user entered a playlist link
         val playlistId = YouTubeUrlParser.extractPlaylistId(trimmed)
         if (playlistId != null) {
             val playlistItems = fetchPlaylistVideos(playlistId)
             if (playlistItems.isNotEmpty()) {
+                searchCache.put(cacheKey, playlistItems)
                 return@withContext playlistItems
             }
         }
@@ -197,13 +214,15 @@ class YouTubeSearchManager @Inject constructor() {
         // If user entered a direct video URL or 11-char ID
         val directId = YouTubeUrlParser.extractVideoId(trimmed)
         if (directId != null) {
-            return@withContext listOf(
+            val singleResult = listOf(
                 YouTubeSearchResult(
                     videoId = directId,
                     title = "YouTube Video: $directId",
                     channel = "Direct Link"
                 )
             )
+            searchCache.put(cacheKey, singleResult)
+            return@withContext singleResult
         }
 
         try {
@@ -231,10 +250,7 @@ class YouTubeSearchManager @Inject constructor() {
             val results = mutableListOf<YouTubeSearchResult>()
             val seenIds = mutableSetOf<String>()
 
-            // Pattern for videoId and title inside ytInitialData
-            val pattern = Pattern.compile("\"videoId\":\"([a-zA-Z0-9_-]{11})\".*?\"title\":\\{\"runs\":\\[\\{\"text\":\"([^\"]+)\"")
-            val matcher = pattern.matcher(html)
-
+            val matcher = PATTERN_YT_SEARCH.matcher(html)
             while (matcher.find() && results.size < 20) {
                 val videoId = matcher.group(1)
                 val rawTitle = matcher.group(2)
@@ -250,13 +266,16 @@ class YouTubeSearchManager @Inject constructor() {
             }
 
             if (results.isNotEmpty()) {
+                searchCache.put(cacheKey, results)
                 results
             } else {
                 // Fallback: match filter on all curated songs
                 val allCurated = curatedPlaylists.values.flatten()
-                allCurated.filter {
+                val filtered = allCurated.filter {
                     it.title.contains(trimmed, ignoreCase = true) || it.channel.contains(trimmed, ignoreCase = true)
                 }.ifEmpty { getTrending() }
+                searchCache.put(cacheKey, filtered)
+                filtered
             }
         } catch (_: Exception) {
             val allCurated = curatedPlaylists.values.flatten()
