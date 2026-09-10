@@ -48,9 +48,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.nddfeon.demonic.data.manager.OwnerConfigManager
+import com.nddfeon.demonic.ui.components.DemonicBannerAd
 import com.nddfeon.demonic.ui.components.DemonicButton
 import com.nddfeon.demonic.ui.components.DemonicButtonVariant
 import com.nddfeon.demonic.ui.components.DemonicTextField
+import com.nddfeon.demonic.ui.components.OwnerControlBottomSheet
 import com.nddfeon.demonic.ui.theme.DemonicBackground
 import com.nddfeon.demonic.ui.theme.DemonicBorder
 import com.nddfeon.demonic.ui.theme.DemonicCrimson
@@ -58,15 +64,18 @@ import com.nddfeon.demonic.ui.theme.DemonicCrimsonDark
 import com.nddfeon.demonic.ui.theme.DemonicErrorRed
 import com.nddfeon.demonic.ui.theme.DemonicSurface
 import com.nddfeon.demonic.ui.theme.DemonicSurfaceVariant
+import com.nddfeon.demonic.ui.theme.DemonicSyncTeal
 import com.nddfeon.demonic.ui.theme.DemonicTextMuted
 import com.nddfeon.demonic.ui.theme.DemonicTextPrimary
 import com.nddfeon.demonic.ui.theme.DemonicTextSecondary
 import com.nddfeon.demonic.ui.theme.DemonicViolet
+import com.nddfeon.demonic.ui.theme.DemonicWarningAmber
 import com.nddfeon.demonic.viewmodel.HomeViewModel
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
+    ownerConfigManager: OwnerConfigManager,
     onNavigateToRoom: (String) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier
@@ -74,6 +83,10 @@ fun HomeScreen(
     val view = LocalView.current
     val currentUser by viewModel.currentUser.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+
+    val isAdsEnabled by ownerConfigManager.isAdsEnabled.collectAsState()
+    val globalAnnouncement by ownerConfigManager.globalAnnouncement.collectAsState()
+    var showOwnerPanel by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
@@ -89,7 +102,7 @@ fun HomeScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp, bottom = 28.dp),
+                .padding(top = 16.dp, bottom = 24.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -145,19 +158,84 @@ fun HomeScreen(
                 }
             }
 
-            // Sign out button
-            IconButton(
-                onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                    viewModel.signOut()
-                    onSignOut()
+            // Top action buttons: Owner Panel & Sign Out
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Owner Control Center Trigger (PIN Protected)
+                IconButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        showOwnerPanel = true
+                    }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(DemonicWarningAmber.copy(alpha = 0.12f))
+                            .border(1.dp, DemonicWarningAmber.copy(alpha = 0.45f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "👑",
+                            fontSize = 16.sp
+                        )
+                    }
                 }
+
+                Spacer(modifier = Modifier.width(2.dp))
+
+                // Sign out button
+                IconButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        viewModel.signOut()
+                        onSignOut()
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                        contentDescription = "Sign Out",
+                        tint = DemonicTextMuted
+                    )
+                }
+            }
+        }
+
+        // Global Owner Announcement (if broadcasted)
+        if (!globalAnnouncement.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 20.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(Color(0xFF2B1D0E), Color(0xFF1B1424))
+                        )
+                    )
+                    .border(1.dp, DemonicWarningAmber.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                    .padding(14.dp)
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                    contentDescription = "Sign Out",
-                    tint = DemonicTextMuted
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "📢", fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "GLOBAL ANNOUNCEMENT",
+                            color = DemonicWarningAmber,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = globalAnnouncement!!,
+                            color = DemonicTextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
         }
 
@@ -403,6 +481,12 @@ fun HomeScreen(
             }
         }
 
+        // Non-intrusive Banner Ad slot (Controlled by OwnerConfigManager)
+        DemonicBannerAd(
+            isAdsEnabled = isAdsEnabled,
+            modifier = Modifier.padding(top = 16.dp)
+        )
+
         uiState.errorMessage?.let { error ->
             Spacer(modifier = Modifier.height(18.dp))
             Text(
@@ -412,5 +496,12 @@ fun HomeScreen(
                 textAlign = TextAlign.Center
             )
         }
+    }
+
+    if (showOwnerPanel) {
+        OwnerControlBottomSheet(
+            ownerConfigManager = ownerConfigManager,
+            onDismiss = { showOwnerPanel = false }
+        )
     }
 }

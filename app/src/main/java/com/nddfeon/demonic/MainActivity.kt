@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity() {
                             )
                             HomeScreen(
                                 viewModel = homeViewModel,
+                                ownerConfigManager = app.ownerConfigManager,
                                 onNavigateToRoom = { roomCode ->
                                     navController.navigate("room/$roomCode")
                                 },

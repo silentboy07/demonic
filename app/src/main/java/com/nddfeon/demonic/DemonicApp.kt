@@ -1,8 +1,9 @@
-﻿package com.nddfeon.demonic
+package com.nddfeon.demonic
 
 import android.app.Application
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import com.nddfeon.demonic.data.manager.OwnerConfigManager
 import com.nddfeon.demonic.data.repository.AuthRepository
 import com.nddfeon.demonic.data.repository.FirebaseAuthRepository
 import com.nddfeon.demonic.data.repository.FirebaseRoomRepository
@@ -20,6 +21,8 @@ class DemonicApp : Application() {
         private set
     lateinit var youTubeSearchManager: YouTubeSearchManager
         private set
+    lateinit var ownerConfigManager: OwnerConfigManager
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -33,5 +36,6 @@ class DemonicApp : Application() {
         roomRepository = FirebaseRoomRepository(database)
         youTubePlayerManager = YouTubePlayerManager()
         youTubeSearchManager = YouTubeSearchManager()
+        ownerConfigManager = OwnerConfigManager(this, database)
     }
 }
