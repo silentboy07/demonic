@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.player
+package com.nddfeon.demonic.player
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,7 +25,7 @@ class YouTubeSearchManager @Inject constructor() {
         YouTubeSearchResult("jfKfPfyJRdk", "lofi hip hop radio 📚 beats to relax/study to", "Lofi Girl"),
         YouTubeSearchResult("4xDzrJKXOOY", "synthwave radio 🌌 beats to chill/game to", "Lofi Girl"),
         YouTubeSearchResult("fHI8X483mQw", "Midnight City - M83", "M83"),
-        YouTubeSearchResult("dQw4w9WgXcQ", "Never Gonna Give You Up", "Rick Astley"),
+        YouTubeSearchResult("RgKAFK5djSk", "See You Again ft. Charlie Puth", "Wiz Khalifa"),
         YouTubeSearchResult("kJQP7kiw5Fk", "Despacito ft. Daddy Yankee", "Luis Fonsi"),
         YouTubeSearchResult("JGwWNGJdvx8", "Shape of You", "Ed Sheeran"),
         YouTubeSearchResult("OPf0YbXqDm0", "Uptown Funk ft. Bruno Mars", "Mark Ronson"),

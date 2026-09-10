@@ -34,7 +34,7 @@ interface RoomRepository {
     val serverTimeOffsetMs: StateFlow<Long>
     fun getServerNowMs(): Long
 
-    suspend fun createRoom(user: UserAccount, initialVideoId: String = "dQw4w9WgXcQ"): Result<String>
+    suspend fun createRoom(user: UserAccount, initialVideoId: String = ""): Result<String>
     suspend fun joinRoom(roomCode: String, user: UserAccount): Result<Room>
     suspend fun leaveRoom(roomCode: String, uid: String)
 
@@ -158,7 +158,7 @@ class FirebaseRoomRepository @Inject constructor(
             state = "paused",
             position = 0.0,
             updatedAt = now,
-            videoTitle = "Synchronized Playback",
+            videoTitle = if (initialVideoId.isNotEmpty()) "Synchronized Playback" else "",
             isPublic = true,
             memberCount = 1
         )

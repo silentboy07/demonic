@@ -368,16 +368,22 @@ fun RoomScreen(
                                     .rel(0)
                                     .ivLoadPolicy(3)
                                     .ccLoadPolicy(0)
-                                    .origin("https://www.youtube.com")
                                     .build()
 
-                                // Unblock programmatic playback in Android WebView
+                                // Unblock programmatic playback in Android WebView & spoof mobile browser
                                 fun configureWebView(v: android.view.View) {
                                     if (v is android.webkit.WebView) {
                                         v.settings.apply {
                                             javaScriptEnabled = true
                                             mediaPlaybackRequiresUserGesture = false
                                             domStorageEnabled = true
+                                            // Strip WebView tokens so YouTube does not restrict music video playback
+                                            val currentUa = userAgentString ?: ""
+                                            if (currentUa.contains("; wv") || currentUa.contains("Version/")) {
+                                                userAgentString = currentUa
+                                                    .replace("; wv", "")
+                                                    .replace(Regex("Version/[0-9.]+ "), "")
+                                            }
                                         }
                                     } else if (v is android.view.ViewGroup) {
                                         for (i in 0 until v.childCount) {
@@ -387,7 +393,7 @@ fun RoomScreen(
                                 }
 
                                 configureWebView(this)
-                                android.util.Log.d("DemonicPlayer", "Calling initialize() with origin=https://www.youtube.com")
+                                android.util.Log.d("DemonicPlayer", "Calling initialize() with app package origin: ${ctx.packageName}")
                                 initialize(viewModel.playerManager.listener, false, options)
                                 android.util.Log.d("DemonicPlayer", "initialize() called successfully")
                                 post { configureWebView(this) }

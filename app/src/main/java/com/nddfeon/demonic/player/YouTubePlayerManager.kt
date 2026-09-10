@@ -97,6 +97,7 @@ class YouTubePlayerManager @Inject constructor() {
     }
 
     fun loadOrCueVideo(videoId: String, startSeconds: Float = 0f, autoPlay: Boolean = false) {
+        if (videoId.isBlank()) return
         _activeVideoId.value = videoId
         _currentSecond.value = startSeconds
         pendingVideoId = videoId
