@@ -368,6 +368,7 @@ fun RoomScreen(
                                     .rel(0)
                                     .ivLoadPolicy(3)
                                     .ccLoadPolicy(0)
+                                    .origin("https://www.youtube.com")
                                     .build()
 
                                 // Unblock programmatic playback in Android WebView
@@ -386,7 +387,9 @@ fun RoomScreen(
                                 }
 
                                 configureWebView(this)
+                                android.util.Log.d("DemonicPlayer", "Calling initialize() with origin=https://www.youtube.com")
                                 initialize(viewModel.playerManager.listener, false, options)
+                                android.util.Log.d("DemonicPlayer", "initialize() called successfully")
                                 post { configureWebView(this) }
 
                                 // DEMONIC Multi-Layer Ad-Killer:
