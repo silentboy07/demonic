@@ -113,6 +113,15 @@ import com.nddfeon.demonic.ui.components.RoomQrDialog
 import com.nddfeon.demonic.ui.components.SleepTimerDialog
 import com.nddfeon.demonic.ui.components.YouTubeExplorerSheet
 import com.nddfeon.demonic.ui.components.YouTubeSearchDialog
+import androidx.compose.material.icons.filled.Palette
+import com.nddfeon.demonic.data.model.RoomThemePreset
+import com.nddfeon.demonic.data.model.SpecialEffectType
+import com.nddfeon.demonic.data.model.VisualizerStylePreset
+import com.nddfeon.demonic.ui.components.CircularSpectrumVisualizer
+import com.nddfeon.demonic.ui.components.CyberNeonBarsVisualizer
+import com.nddfeon.demonic.ui.components.RoomFxAndThemesBottomSheet
+import com.nddfeon.demonic.ui.components.RoomSpecialEffectOverlay
+import com.nddfeon.demonic.ui.components.WaveformOscilloscopeVisualizer
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.QrCode
 import com.nddfeon.demonic.ui.theme.DemonicBackground
@@ -164,6 +173,7 @@ fun RoomScreen(
     var playerDisplayMode by remember { mutableStateOf(PlayerDisplayMode.VIDEO) }
     var showSearchDialog by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
+    var showFxStudioSheet by remember { mutableStateOf(false) }
     var showMembersSheet by remember { mutableStateOf(false) }
     var showExplorerSheet by remember { mutableStateOf(false) }
     var showQrDialog by remember { mutableStateOf(false) }
@@ -251,10 +261,12 @@ fun RoomScreen(
         }
     }
 
+    val currentTheme = uiState.currentTheme
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(DemonicBackground)
+            .background(currentTheme.backgroundColor)
     ) {
         Column(
             modifier = Modifier
@@ -761,13 +773,54 @@ fun RoomScreen(
                     }
                 }
 
-                // Vinyl Disc View Overlay
+                // Audio Visualizer / Vinyl Disc View Overlay
                 if (!isInPip && hasVideo && playerDisplayMode == PlayerDisplayMode.VINYL) {
-                    VinylDisc(
-                        videoId = uiState.room?.videoId ?: "",
-                        isPlaying = uiState.room?.isPlaying ?: false,
-                        size = 180.dp
-                    )
+                    when (uiState.visualizerStyle) {
+                        VisualizerStylePreset.CIRCULAR -> {
+                            CircularSpectrumVisualizer(
+                                isPlaying = uiState.room?.isPlaying ?: false,
+                                primaryColor = currentTheme.primaryColor,
+                                secondaryColor = currentTheme.secondaryColor,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                VinylDisc(
+                                    videoId = uiState.room?.videoId ?: "",
+                                    isPlaying = uiState.room?.isPlaying ?: false,
+                                    size = 150.dp
+                                )
+                            }
+                        }
+                        VisualizerStylePreset.NEON_BARS -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CyberNeonBarsVisualizer(
+                                    isPlaying = uiState.room?.isPlaying ?: false,
+                                    primaryColor = currentTheme.primaryColor,
+                                    secondaryColor = currentTheme.secondaryColor,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp)
+                                )
+                            }
+                        }
+                        VisualizerStylePreset.OSCILLOSCOPE -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                WaveformOscilloscopeVisualizer(
+                                    isPlaying = uiState.room?.isPlaying ?: false,
+                                    primaryColor = currentTheme.primaryColor,
+                                    secondaryColor = currentTheme.secondaryColor,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Compact Mini Player Bar
@@ -1224,6 +1277,25 @@ fun RoomScreen(
                 )
             }
 
+
+            // Room FX & Themes Bottom Sheet
+            if (showFxStudioSheet) {
+                RoomFxAndThemesBottomSheet(
+                    isHost = uiState.isHost,
+                    currentTheme = uiState.currentTheme,
+                    currentVisualizer = uiState.visualizerStyle,
+                    onSelectTheme = { theme ->
+                        viewModel.setRoomTheme(theme)
+                    },
+                    onSelectVisualizer = { style ->
+                        viewModel.setVisualizerStyle(style)
+                    },
+                    onTriggerSpecialEffect = { type, targetName, customMsg ->
+                        viewModel.triggerSpecialEffect(type, targetName, customMsg)
+                    },
+                    onDismiss = { showFxStudioSheet = false }
+                )
+            }
             // Sleep Timer Dialog
             if (showSleepTimerDialog) {
                 SleepTimerDialog(
@@ -1259,6 +1331,13 @@ fun RoomScreen(
                 )
             }
         }
+        // Synchronized Room Special FX (Romance, Bass Party, VIP Crown, Matrix, Demonic)
+        RoomSpecialEffectOverlay(
+            effect = uiState.activeSpecialEffect,
+            onDismiss = {
+                viewModel.clearActiveSpecialEffect()
+            }
+        )
     }
 }
 

@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.data.model
+package com.nddfeon.demonic.data.model
 
 import com.google.firebase.database.IgnoreExtraProperties
 
@@ -14,10 +14,19 @@ data class Room(
     val videoTitle: String = "",
     val isPublic: Boolean = true,
     val memberCount: Int = 1,
-    val queue: List<QueueItem> = emptyList()
+    val queue: List<QueueItem> = emptyList(),
+    val theme: String = "CYBER_NEON",
+    val visualizerStyle: String = "CIRCULAR",
+    val activeEffect: RoomSpecialEffect? = null
 ) {
     val isPlaying: Boolean
         get() = state.equals("playing", ignoreCase = true)
+
+    val themePreset: RoomThemePreset
+        get() = RoomThemePreset.fromId(theme)
+
+    val visualizerPreset: VisualizerStylePreset
+        get() = VisualizerStylePreset.fromId(visualizerStyle)
 
     fun canControlPlayback(uid: String): Boolean {
         if (uid.isEmpty()) return true

@@ -11,6 +11,9 @@ import com.nddfeon.demonic.data.model.LiveReaction
 import com.nddfeon.demonic.data.model.Member
 import com.nddfeon.demonic.data.model.QueueItem
 import com.nddfeon.demonic.data.model.Room
+import com.nddfeon.demonic.data.model.RoomSpecialEffect
+import com.nddfeon.demonic.data.model.RoomThemePreset
+import com.nddfeon.demonic.data.model.SpecialEffectType
 import com.nddfeon.demonic.data.model.UserAccount
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +79,10 @@ interface RoomRepository {
     suspend fun timeoutMember(roomCode: String, uid: String, durationMinutes: Int, hostName: String, targetName: String): Result<Unit>
     suspend fun removeTimeout(roomCode: String, uid: String, hostName: String, targetName: String): Result<Unit>
     suspend fun deleteRoom(roomCode: String): Result<Unit>
+    suspend fun setRoomTheme(roomCode: String, theme: String): Result<Unit>
+    suspend fun setVisualizerStyle(roomCode: String, style: String): Result<Unit>
+    suspend fun triggerSpecialEffect(roomCode: String, effect: RoomSpecialEffect): Result<Unit>
+    fun observeSpecialEffects(roomCode: String): Flow<RoomSpecialEffect>
 }
 @Singleton
 class FirebaseRoomRepository @Inject constructor(
@@ -96,6 +103,11 @@ class FirebaseRoomRepository @Inject constructor(
     private val localQueues = ConcurrentHashMap<String, MutableStateFlow<List<QueueItem>>>()
     private val localReactions = ConcurrentHashMap<String, MutableSharedFlow<LiveReaction>>()
     private val localPublicRooms = MutableStateFlow<List<Room>>(emptyList())
+    private val localSpecialEffects = ConcurrentHashMap<String, MutableSharedFlow<RoomSpecialEffect>>()
+
+    private fun getOrCreateLocalSpecialEffects(roomCode: String): MutableSharedFlow<RoomSpecialEffect> {
+        return localSpecialEffects.computeIfAbsent(roomCode) { MutableSharedFlow(extraBufferCapacity = 64) }
+    }
 
     init {
         try {
@@ -200,7 +212,9 @@ class FirebaseRoomRepository @Inject constructor(
                         "position" to 0.0,
                         "updatedAt" to ServerValue.TIMESTAMP,
                         "videoTitle" to "Synchronized Playback",
-                        "isPublic" to true
+                        "isPublic" to true,
+                        "theme" to "CYBER_NEON",
+                        "visualizerStyle" to "CIRCULAR"
                     )
                     roomsRef.setValue(roomData).await()
 
@@ -264,6 +278,8 @@ class FirebaseRoomRepository @Inject constructor(
                 val updatedAt = snapshot.child("updatedAt").getValue(Long::class.java) ?: now
                 val videoTitle = snapshot.child("videoTitle").getValue(String::class.java) ?: ""
                 val isPublic = snapshot.child("isPublic").getValue(Boolean::class.java) ?: true
+                val theme = snapshot.child("theme").getValue(String::class.java) ?: "CYBER_NEON"
+                val visualizerStyle = snapshot.child("visualizerStyle").getValue(String::class.java) ?: "CIRCULAR"
 
                 remoteRoom = Room(
                     roomCode = upperCode,
@@ -274,7 +290,9 @@ class FirebaseRoomRepository @Inject constructor(
                     position = position,
                     updatedAt = updatedAt,
                     videoTitle = videoTitle,
-                    isPublic = isPublic
+                    isPublic = isPublic,
+                    theme = theme,
+                    visualizerStyle = visualizerStyle
                 )
                 getOrCreateLocalRoom(upperCode).value = remoteRoom
 
@@ -377,6 +395,8 @@ class FirebaseRoomRepository @Inject constructor(
                         val updatedAt = snapshot.child("updatedAt").getValue(Long::class.java) ?: 0L
                         val videoTitle = snapshot.child("videoTitle").getValue(String::class.java) ?: ""
                         val isPublic = snapshot.child("isPublic").getValue(Boolean::class.java) ?: true
+                        val theme = snapshot.child("theme").getValue(String::class.java) ?: "CYBER_NEON"
+                        val visualizerStyle = snapshot.child("visualizerStyle").getValue(String::class.java) ?: "CIRCULAR"
 
                         val room = Room(
                             roomCode = upperCode,
@@ -387,7 +407,9 @@ class FirebaseRoomRepository @Inject constructor(
                             position = position,
                             updatedAt = updatedAt,
                             videoTitle = videoTitle,
-                            isPublic = isPublic
+                            isPublic = isPublic,
+                            theme = theme,
+                            visualizerStyle = visualizerStyle
                         )
                         localFlow.value = room
                         trySend(room)
@@ -1028,5 +1050,124 @@ class FirebaseRoomRepository @Inject constructor(
             } catch (_: Exception) {}
         }
         return Result.success(Unit)
+    }
+
+    override suspend fun setRoomTheme(roomCode: String, theme: String): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        localRooms[upperCode]?.value?.let { currentRoom ->
+            localRooms[upperCode]?.value = currentRoom.copy(theme = theme)
+        }
+        scope.launch {
+            try {
+                database.getReference("rooms").child(upperCode).child("theme").setValue(theme).await()
+                val themePreset = RoomThemePreset.fromId(theme)
+                val sysMsgId = "sys_th_${System.currentTimeMillis()}_${(100..999).random()}"
+                val sysMsg = hashMapOf<String, Any>(
+                    "id" to sysMsgId,
+                    "senderId" to "system",
+                    "senderName" to "DEMONIC",
+                    "text" to "🎨 Room aesthetic switched to ${themePreset.emoji} ${themePreset.displayName}",
+                    "sentAt" to ServerValue.TIMESTAMP
+                )
+                database.getReference("rooms").child(upperCode).child("messages").child(sysMsgId).setValue(sysMsg)
+            } catch (_: Exception) {}
+        }
+        return Result.success(Unit)
+    }
+
+    override suspend fun setVisualizerStyle(roomCode: String, style: String): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        localRooms[upperCode]?.value?.let { currentRoom ->
+            localRooms[upperCode]?.value = currentRoom.copy(visualizerStyle = style)
+        }
+        scope.launch {
+            try {
+                database.getReference("rooms").child(upperCode).child("visualizerStyle").setValue(style).await()
+            } catch (_: Exception) {}
+        }
+        return Result.success(Unit)
+    }
+
+    override suspend fun triggerSpecialEffect(roomCode: String, effect: RoomSpecialEffect): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        val effectId = if (effect.id.isNotEmpty()) effect.id else "fx_${System.currentTimeMillis()}_${(100..999).random()}"
+        val updatedEffect = effect.copy(id = effectId, timestamp = System.currentTimeMillis())
+
+        getOrCreateLocalSpecialEffects(upperCode).emit(updatedEffect)
+
+        scope.launch {
+            try {
+                val fxData = hashMapOf<String, Any>(
+                    "id" to updatedEffect.id,
+                    "type" to updatedEffect.type,
+                    "senderName" to updatedEffect.senderName,
+                    "targetName" to updatedEffect.targetName,
+                    "customMessage" to updatedEffect.customMessage,
+                    "timestamp" to ServerValue.TIMESTAMP
+                )
+                database.getReference("rooms").child(upperCode).child("activeEffects").child(effectId).setValue(fxData).await()
+
+                val effectPreset = SpecialEffectType.fromId(updatedEffect.type)
+                val chatText = when (updatedEffect.type) {
+                    SpecialEffectType.LOVE_EXPLOSION.id -> {
+                        if (updatedEffect.targetName.isNotBlank()) {
+                            "💖 ${updatedEffect.senderName} sent a Romantic Love Blast to ${updatedEffect.targetName}: \"${updatedEffect.customMessage}\" 🌹"
+                        } else {
+                            "💖 ${updatedEffect.senderName} sent a Romantic Love Blast: \"${updatedEffect.customMessage}\" 🌹"
+                        }
+                    }
+                    SpecialEffectType.PARTY_FLAMES.id -> "🔥 ${updatedEffect.senderName} dropped the Bass Fire Blast! 💥"
+                    SpecialEffectType.CROWN_VIP.id -> "👑 ${updatedEffect.senderName} triggered VIP Royal Vibes! ✨"
+                    SpecialEffectType.MATRIX_RAIN.id -> "⚡ ${updatedEffect.senderName} initiated Matrix Cyber Overload! 👾"
+                    SpecialEffectType.DEMONIC_SURGE.id -> "💀 ${updatedEffect.senderName} unleashed Demonic Rave Energy! ⚡"
+                    else -> "✨ ${updatedEffect.senderName} triggered ${effectPreset?.title ?: "Special FX"}!"
+                }
+
+                val sysMsgId = "sys_fx_${System.currentTimeMillis()}_${(100..999).random()}"
+                val sysMsg = hashMapOf<String, Any>(
+                    "id" to sysMsgId,
+                    "senderId" to "system",
+                    "senderName" to "DEMONIC FX",
+                    "text" to chatText,
+                    "sentAt" to ServerValue.TIMESTAMP
+                )
+                database.getReference("rooms").child(upperCode).child("messages").child(sysMsgId).setValue(sysMsg)
+            } catch (_: Exception) {}
+        }
+        return Result.success(Unit)
+    }
+
+    override fun observeSpecialEffects(roomCode: String): Flow<RoomSpecialEffect> {
+        val upperCode = roomCode.trim().uppercase()
+        val localFlow = getOrCreateLocalSpecialEffects(upperCode)
+
+        val firebaseFlow = callbackFlow {
+            val effectsRef = database.getReference("rooms").child(upperCode).child("activeEffects")
+            val listener = object : ChildEventListener {
+                override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                    val id = snapshot.key ?: ""
+                    val type = snapshot.child("type").getValue(String::class.java) ?: SpecialEffectType.LOVE_EXPLOSION.id
+                    val senderName = snapshot.child("senderName").getValue(String::class.java) ?: ""
+                    val targetName = snapshot.child("targetName").getValue(String::class.java) ?: ""
+                    val customMessage = snapshot.child("customMessage").getValue(String::class.java) ?: ""
+                    val timestamp = snapshot.child("timestamp").getValue(Long::class.java) ?: System.currentTimeMillis()
+
+                    val effect = RoomSpecialEffect(id, type, senderName, targetName, customMessage, timestamp)
+                    trySend(effect)
+                }
+                override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
+                override fun onChildRemoved(snapshot: DataSnapshot) {}
+                override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+                override fun onCancelled(error: DatabaseError) {}
+            }
+            try {
+                effectsRef.addChildEventListener(listener)
+            } catch (_: Exception) {}
+            awaitClose {
+                try { effectsRef.removeEventListener(listener) } catch (_: Exception) {}
+            }
+        }
+
+        return merge(localFlow, firebaseFlow)
     }
 }

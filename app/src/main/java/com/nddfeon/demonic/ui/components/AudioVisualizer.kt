@@ -1,5 +1,19 @@
 package com.nddfeon.demonic.ui.components
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.nddfeon.demonic.data.model.VisualizerStylePreset
+import kotlin.math.cos
+import kotlin.math.sin
+
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -15,6 +29,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -323,5 +338,220 @@ fun SleepTimerDialog(
                 )
             }
         }
+    }
+}
+
+
+// ---------------------------------------------------------------------------------
+// 1. 🔄 PULSING CIRCULAR SPECTRUM (Radial orbiting audio bars)
+// ---------------------------------------------------------------------------------
+@Composable
+fun CircularSpectrumVisualizer(
+    isPlaying: Boolean,
+    primaryColor: Color,
+    secondaryColor: Color,
+    modifier: Modifier = Modifier,
+    centerContent: @Composable () -> Unit = {}
+) {
+    var phase by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(isPlaying) {
+        var lastTime = 0L
+        while (isPlaying) {
+            withFrameNanos { time ->
+                if (lastTime != 0L) {
+                    val dt = (time - lastTime) / 1_000_000_000f
+                    phase = (phase + dt * 2.5f) % (2f * Math.PI.toFloat())
+                }
+                lastTime = time
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val baseRadius = (size.minDimension / 2f) * 0.72f
+            val barCount = 48
+            val angleStep = (2f * Math.PI.toFloat()) / barCount
+
+            for (i in 0 until barCount) {
+                val angle = i * angleStep
+                val wave1 = sin(angle * 3f + phase)
+                val wave2 = cos(angle * 5f - phase * 1.5f)
+                val waveFactor = if (isPlaying) (wave1 + wave2 + 2f) / 4f else 0.08f
+
+                val barLen = if (isPlaying) 10.dp.toPx() + waveFactor * 26.dp.toPx() else 4.dp.toPx()
+
+                val startX = center.x + baseRadius * cos(angle)
+                val startY = center.y + baseRadius * sin(angle)
+                val endX = center.x + (baseRadius + barLen) * cos(angle)
+                val endY = center.y + (baseRadius + barLen) * sin(angle)
+
+                val barColor = if (i % 2 == 0) primaryColor else secondaryColor
+
+                drawLine(
+                    color = barColor.copy(alpha = if (isPlaying) 0.85f else 0.3f),
+                    start = Offset(startX, startY),
+                    end = Offset(endX, endY),
+                    strokeWidth = 3.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+            }
+
+            // Outer subtle glow ring
+            drawCircle(
+                color = primaryColor.copy(alpha = if (isPlaying) 0.25f else 0.1f),
+                radius = baseRadius - 4.dp.toPx(),
+                center = center,
+                style = Stroke(width = 1.5.dp.toPx())
+            )
+        }
+
+        centerContent()
+    }
+}
+
+// ---------------------------------------------------------------------------------
+// 2. 📊 CYBER NEON BARS (High-dynamic multi-band equalizer)
+// ---------------------------------------------------------------------------------
+@Composable
+fun CyberNeonBarsVisualizer(
+    isPlaying: Boolean,
+    primaryColor: Color,
+    secondaryColor: Color,
+    modifier: Modifier = Modifier
+) {
+    var phase by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(isPlaying) {
+        var lastTime = 0L
+        while (isPlaying) {
+            withFrameNanos { time ->
+                if (lastTime != 0L) {
+                    val dt = (time - lastTime) / 1_000_000_000f
+                    phase = (phase + dt * 4f) % 1000f
+                }
+                lastTime = time
+            }
+        }
+    }
+
+    Canvas(modifier = modifier.fillMaxWidth().height(160.dp)) {
+        val barCount = 28
+        val spacing = 4.dp.toPx()
+        val totalSpacing = spacing * (barCount - 1)
+        val barWidth = ((size.width - totalSpacing) / barCount).coerceAtLeast(3.dp.toPx())
+        val maxHeight = size.height * 0.85f
+
+        for (i in 0 until barCount) {
+            val offset = i * 0.35f
+            val sinVal = sin(phase + offset)
+            val cosVal = cos(phase * 0.7f + offset * 1.2f)
+            val factor = if (isPlaying) ((sinVal + cosVal + 2f) / 4f).coerceIn(0.12f, 1f) else 0.08f
+
+            val barHeight = (maxHeight * factor).coerceAtLeast(6.dp.toPx())
+            val x = i * (barWidth + spacing)
+            val y = size.height - barHeight
+
+            // Bar Gradient
+            drawRoundRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(primaryColor, secondaryColor),
+                    startY = y,
+                    endY = size.height
+                ),
+                topLeft = Offset(x, y),
+                size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx(), 4.dp.toPx())
+            )
+
+            // Top Peak Cap
+            if (isPlaying && factor > 0.3f) {
+                val capY = (y - 5.dp.toPx()).coerceAtLeast(0f)
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.9f),
+                    topLeft = Offset(x, capY),
+                    size = androidx.compose.ui.geometry.Size(barWidth, 2.5.dp.toPx()),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx(), 2.dp.toPx())
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------
+// 3. 〰️ WAVEFORM OSCILLOSCOPE (Smooth fluid sine wave)
+// ---------------------------------------------------------------------------------
+@Composable
+fun WaveformOscilloscopeVisualizer(
+    isPlaying: Boolean,
+    primaryColor: Color,
+    secondaryColor: Color,
+    modifier: Modifier = Modifier
+) {
+    var phase by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(isPlaying) {
+        var lastTime = 0L
+        while (isPlaying) {
+            withFrameNanos { time ->
+                if (lastTime != 0L) {
+                    val dt = (time - lastTime) / 1_000_000_000f
+                    phase = (phase + dt * 3.5f) % (2f * Math.PI.toFloat())
+                }
+                lastTime = time
+            }
+        }
+    }
+
+    Canvas(modifier = modifier.fillMaxWidth().height(160.dp)) {
+        val midY = size.height / 2f
+        val waveAmplitude = if (isPlaying) size.height * 0.35f else size.height * 0.05f
+        val points = 60
+        val dx = size.width / points
+
+        val pathPrimary = Path()
+        val pathSecondary = Path()
+
+        for (i in 0..points) {
+            val x = i * dx
+            val normalizedX = (i.toFloat() / points) * 2f * Math.PI.toFloat()
+            val y1 = midY + sin(normalizedX * 2.5f + phase) * waveAmplitude
+            val y2 = midY + cos(normalizedX * 3.2f - phase * 1.2f) * (waveAmplitude * 0.75f)
+
+            if (i == 0) {
+                pathPrimary.moveTo(x, y1)
+                pathSecondary.moveTo(x, y2)
+            } else {
+                pathPrimary.lineTo(x, y1)
+                pathSecondary.lineTo(x, y2)
+            }
+        }
+
+        // Draw primary wave
+        drawPath(
+            path = pathPrimary,
+            color = primaryColor,
+            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+        )
+
+        // Draw secondary wave
+        drawPath(
+            path = pathSecondary,
+            color = secondaryColor.copy(alpha = 0.75f),
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+        )
+
+        // Center line
+        drawLine(
+            color = primaryColor.copy(alpha = 0.2f),
+            start = Offset(0f, midY),
+            end = Offset(size.width, midY),
+            strokeWidth = 1.dp.toPx()
+        )
     }
 }

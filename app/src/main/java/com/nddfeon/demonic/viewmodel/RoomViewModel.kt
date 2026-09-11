@@ -8,6 +8,10 @@ import com.nddfeon.demonic.data.model.LiveReaction
 import com.nddfeon.demonic.data.model.Member
 import com.nddfeon.demonic.data.model.QueueItem
 import com.nddfeon.demonic.data.model.Room
+import com.nddfeon.demonic.data.model.RoomSpecialEffect
+import com.nddfeon.demonic.data.model.RoomThemePreset
+import com.nddfeon.demonic.data.model.SpecialEffectType
+import com.nddfeon.demonic.data.model.VisualizerStylePreset
 import com.nddfeon.demonic.data.model.UserAccount
 import com.nddfeon.demonic.data.repository.AuthRepository
 import com.nddfeon.demonic.data.repository.RoomRepository
@@ -46,7 +50,10 @@ data class RoomUiState(
     val chatInput: String = "",
     val replyingToMessage: ChatMessage? = null,
     val isRoomClosed: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val currentTheme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
+    val visualizerStyle: VisualizerStylePreset = VisualizerStylePreset.CIRCULAR,
+    val activeSpecialEffect: RoomSpecialEffect? = null
 )
 
 @HiltViewModel
@@ -109,6 +116,7 @@ class RoomViewModel @Inject constructor(
         observeTyping()
         observeQueue()
         observeReactions()
+        observeSpecialEffects()
         observePlayerStateForAutoNext()
         DemonicPlaybackService.onNextTrackCallback = {
             skipToNextTrack()
@@ -145,7 +153,9 @@ class RoomViewModel @Inject constructor(
                     members = updatedMembers,
                     isHost = isHost,
                     isDj = isDj,
-                    canControlPlayback = canControl
+                    canControlPlayback = canControl,
+                    currentTheme = room.themePreset,
+                    visualizerStyle = room.visualizerPreset
                 )
 
                 handleRemoteRoomUpdate(room)
@@ -688,7 +698,64 @@ class RoomViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
+
+    private fun observeSpecialEffects() {
+        viewModelScope.launch {
+            roomRepository.observeSpecialEffects(roomCode).collect { effect ->
+                _uiState.value = _uiState.value.copy(activeSpecialEffect = effect)
+                delay(6000L)
+                if (_uiState.value.activeSpecialEffect?.id == effect.id) {
+                    _uiState.value = _uiState.value.copy(activeSpecialEffect = null)
+                }
+            }
+        }
+    }
+
+    fun setRoomTheme(theme: RoomThemePreset) {
+        _uiState.value = _uiState.value.copy(currentTheme = theme)
+        viewModelScope.launch {
+            roomRepository.setRoomTheme(roomCode, theme.id)
+        }
+    }
+
+    fun setVisualizerStyle(style: VisualizerStylePreset) {
+        _uiState.value = _uiState.value.copy(visualizerStyle = style)
+        viewModelScope.launch {
+            roomRepository.setVisualizerStyle(roomCode, style.id)
+        }
+    }
+
+    fun triggerSpecialEffect(
+        type: SpecialEffectType,
+        targetName: String = "",
+        customMessage: String = ""
+    ) {
+        val user = getEffectiveUser()
+        val defaultMsg = if (customMessage.isNotBlank()) customMessage else type.defaultText
+        val effect = RoomSpecialEffect(
+            id = "fx_${System.currentTimeMillis()}_${(100..999).random()}",
+            type = type.id,
+            senderName = user.displayName,
+            targetName = targetName.trim(),
+            customMessage = defaultMsg,
+            timestamp = System.currentTimeMillis()
+        )
+        _uiState.value = _uiState.value.copy(activeSpecialEffect = effect)
+        viewModelScope.launch {
+            roomRepository.triggerSpecialEffect(roomCode, effect)
+            delay(6000L)
+            if (_uiState.value.activeSpecialEffect?.id == effect.id) {
+                _uiState.value = _uiState.value.copy(activeSpecialEffect = null)
+            }
+        }
+    }
+
+    fun clearActiveSpecialEffect() {
+        _uiState.value = _uiState.value.copy(activeSpecialEffect = null)
+    }
+
     override fun onCleared() {
+
         super.onCleared()
         driftMonitoringJob?.cancel()
         sleepTimerJob?.cancel()
