@@ -53,7 +53,9 @@ data class RoomUiState(
     val errorMessage: String? = null,
     val currentTheme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
     val visualizerStyle: VisualizerStylePreset = VisualizerStylePreset.CIRCULAR,
-    val activeSpecialEffect: RoomSpecialEffect? = null
+    val activeSpecialEffect: RoomSpecialEffect? = null,
+    val isMutedLocally: Boolean = false,
+    val isAfkMode: Boolean = false
 )
 
 @HiltViewModel
@@ -82,6 +84,15 @@ class RoomViewModel @Inject constructor(
     private var lastObservedVideoId: String = ""
     private var lastVideoLoadedTime: Long = 0L
     private var lastDriftSeekTime: Long = 0L
+
+    fun toggleLocalMute(): Boolean {
+        val newMute = playerManager.toggleLocalMute()
+        _uiState.value = _uiState.value.copy(
+            isMutedLocally = newMute,
+            isAfkMode = newMute
+        )
+        return newMute
+    }
 
     fun setSleepTimer(minutes: Int?) {
         _sleepTimerMinutes.value = minutes
@@ -120,6 +131,14 @@ class RoomViewModel @Inject constructor(
         observePlayerStateForAutoNext()
         DemonicPlaybackService.onNextTrackCallback = {
             skipToNextTrack()
+        }
+        viewModelScope.launch {
+            playerManager.isMutedLocally.collect { muted ->
+                _uiState.value = _uiState.value.copy(
+                    isMutedLocally = muted,
+                    isAfkMode = muted
+                )
+            }
         }
         startDriftMonitoringLoop()
     }
@@ -195,9 +214,9 @@ class RoomViewModel @Inject constructor(
             return
         }
 
-        // For Listeners: Allow a 4-second initial buffer period before applying any drift seeks
+        // Ultra-Fast Sync for Listeners: Only 1.2s initial buffer before drift correction
         val timeSinceLoad = System.currentTimeMillis() - lastVideoLoadedTime
-        if (timeSinceLoad < 4000L) {
+        if (timeSinceLoad < 1200L) {
             if (room.isPlaying) playerManager.play() else playerManager.pause()
             return
         }
@@ -208,10 +227,10 @@ class RoomViewModel @Inject constructor(
             val currentSec = playerManager.currentSecond.value
             val drift = abs(currentSec - targetPosition)
 
-            // Only seek if the player is actively playing and drift exceeds 2.5s
-            if (playerManager.isPlaying() && drift > 2.5f && (System.currentTimeMillis() - lastDriftSeekTime > 5000L)) {
+            // High-precision sub-second sync: correct if drift exceeds 0.85s with 1.5s cooldown
+            if (playerManager.isPlaying() && drift > 0.85f && (System.currentTimeMillis() - lastDriftSeekTime > 1500L)) {
                 lastDriftSeekTime = System.currentTimeMillis()
-                android.util.Log.d("DemonicSync", "Listener drift $drift > 2.5s, seeking to: $targetPosition")
+                android.util.Log.d("DemonicSync", "Ultra-Fast Sync: drift $drift > 0.85s, seeking to: $targetPosition")
                 playerManager.seekTo(targetPosition)
             }
             playerManager.play()
@@ -225,14 +244,16 @@ class RoomViewModel @Inject constructor(
     private fun startDriftMonitoringLoop() {
         driftMonitoringJob?.cancel()
         driftMonitoringJob = viewModelScope.launch {
+            var loopTick = 0
             while (isActive) {
-                delay(4000L)
+                delay(1200L) // Ultra-fast check every 1.2 seconds (was 4000ms!)
+                loopTick++
                 val room = lastKnownRoom ?: continue
                 val currentUid = getEffectiveUser().uid
                 val isHost = (room.hostId == currentUid || room.hostId.isEmpty() || (room.hostId.startsWith("guest_") && currentUid.startsWith("guest_")))
 
                 if (isHost) {
-                    // Host Heartbeat: Every 4 seconds, report true player position so listeners stay lock-stepped
+                    // Host Heartbeat: Reports true player position every 1.2s to 2.4s
                     if (room.isPlaying && playerManager.isPlaying()) {
                         val currentPos = playerManager.currentSecond.value.toDouble()
                         roomRepository.updatePlaybackState(
@@ -243,7 +264,7 @@ class RoomViewModel @Inject constructor(
                     }
                     _uiState.value = _uiState.value.copy(driftSeconds = 0f, isSyncing = false)
                 } else {
-                    // Listener drift evaluation
+                    // Listener ultra-fast drift evaluation
                     if (room.isPlaying) {
                         val serverNow = roomRepository.getServerNowMs()
                         val deltaSec = ((serverNow - room.updatedAt).coerceAtLeast(0L)) / 1000.0
@@ -254,18 +275,22 @@ class RoomViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(driftSeconds = drift)
 
                         val timeSinceLoad = System.currentTimeMillis() - lastVideoLoadedTime
-                        if (timeSinceLoad > 4000L && playerManager.isPlaying() && abs(drift) > 2.5f && (System.currentTimeMillis() - lastDriftSeekTime > 5000L)) {
+                        // Instant sub-second correction if drift > 0.85s (was 2.5s)
+                        if (timeSinceLoad > 1200L && playerManager.isPlaying() && abs(drift) > 0.85f && (System.currentTimeMillis() - lastDriftSeekTime > 1500L)) {
                             _uiState.value = _uiState.value.copy(isSyncing = true)
                             lastDriftSeekTime = System.currentTimeMillis()
-                            android.util.Log.d("DemonicSync", "Drift correction loop: seeking listener to $expectedPosition (drift: $drift)")
+                            android.util.Log.d("DemonicSync", "Ultra-Fast Drift correction: seeking listener to $expectedPosition (drift: $drift)")
                             playerManager.seekTo(expectedPosition)
-                            delay(400L)
+                            delay(250L)
                             _uiState.value = _uiState.value.copy(isSyncing = false)
                         }
                     } else {
                         val actualPosition = playerManager.currentSecond.value
                         val drift = actualPosition - room.position.toFloat()
                         _uiState.value = _uiState.value.copy(driftSeconds = drift)
+                        if (abs(drift) > 0.5f) {
+                            playerManager.seekTo(room.position.toFloat())
+                        }
                     }
                 }
             }
@@ -309,10 +334,13 @@ class RoomViewModel @Inject constructor(
                         name = effectiveUser.displayName,
                         photoUrl = effectiveUser.photoUrl ?: "",
                         joinedAt = System.currentTimeMillis(),
-                        isHost = (effectiveUser.uid == currentHostId)
+                        isHost = (effectiveUser.uid == currentHostId),
+                        isAfk = _uiState.value.isMutedLocally
                     )
                 } else {
-                    rawMembers
+                    rawMembers.map { m ->
+                        if (m.uid == effectiveUser.uid) m.copy(isAfk = _uiState.value.isMutedLocally) else m
+                    }
                 }
                 val updatedMembers = withCurrent.map { member ->
                     member.copy(isHost = currentHostId.isNotEmpty() && member.uid == currentHostId)

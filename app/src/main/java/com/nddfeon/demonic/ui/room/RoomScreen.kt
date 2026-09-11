@@ -3,8 +3,10 @@ package com.nddfeon.demonic.ui.room
 import android.content.Intent
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,6 +39,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.MoreVert
@@ -667,6 +671,35 @@ fun RoomScreen(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+
+                // Local Mute / AFK Quick Button (Mute only on your phone)
+                IconButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        val isNowMuted = viewModel.toggleLocalMute()
+                        Toast.makeText(
+                            context,
+                            if (isNowMuted) "Audio muted for you 🔇 (Room is still live!)" else "Audio unmuted 🔊",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (uiState.isMutedLocally) Color(0xFF38230D) else currentTheme.surfaceColor)
+                        .border(
+                            1.dp,
+                            if (uiState.isMutedLocally) Color(0xFFFFB300) else currentTheme.borderColor,
+                            RoundedCornerShape(10.dp)
+                        )
+                ) {
+                    Icon(
+                        imageVector = if (uiState.isMutedLocally) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                        contentDescription = "Mute for me",
+                        tint = if (uiState.isMutedLocally) Color(0xFFFFC107) else DemonicTextPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
 
@@ -1074,7 +1107,9 @@ fun RoomScreen(
                             isFullscreen = false
                             isLandscape = false
                             activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                        }
+                        },
+                        isMutedLocally = uiState.isMutedLocally,
+                        onToggleLocalMute = { viewModel.toggleLocalMute() }
                     )
                 }
             }
@@ -1092,12 +1127,29 @@ fun RoomScreen(
                     )
                 }
 
-                // Playback Controls & Progress Scrubber (Host or DJ) - Hidden in Compact Mini-Player mode
+                // Playback Controls (Host/DJ) OR Listener Audio Sync Strip (Joiners)
                 if (uiState.canControlPlayback && playerDisplayMode != PlayerDisplayMode.COMPACT) {
                     RoomPlaybackControlsSection(
                         viewModel = viewModel,
                         isPlaying = uiState.room?.isPlaying ?: false,
+                        isMutedLocally = uiState.isMutedLocally,
                         theme = currentTheme
+                    )
+                } else if (!uiState.canControlPlayback && playerDisplayMode != PlayerDisplayMode.COMPACT && !uiState.room?.videoId.isNullOrEmpty()) {
+                    // Dedicated Listener Audio Sync & Local Mute Strip!
+                    ListenerAudioSyncSection(
+                        isMutedLocally = uiState.isMutedLocally,
+                        driftSeconds = uiState.driftSeconds,
+                        isSyncing = uiState.isSyncing,
+                        theme = currentTheme,
+                        onToggleMute = {
+                            val isNowMuted = viewModel.toggleLocalMute()
+                            Toast.makeText(
+                                context,
+                                if (isNowMuted) "Audio muted for you 🔇 (Room is still playing live!)" else "Audio unmuted 🔊 (Synced with room)",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     )
                 }
 
@@ -1256,6 +1308,50 @@ fun RoomScreen(
                                 color = currentTheme.primaryColor,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                }
+
+                // Floating AFK / Muted Reminder Banner
+                AnimatedVisibility(
+                    visible = uiState.isMutedLocally,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 2.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF28190B))
+                            .border(1.dp, Color(0xFFFFB300).copy(alpha = 0.8f), RoundedCornerShape(10.dp))
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                viewModel.toggleLocalMute()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "☕", fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Audio muted for you • Room is live",
+                                    color = Color(0xFFFFD54F),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "Tap to Unmute 🔊",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold
                             )
                         }
                     }
@@ -1460,6 +1556,7 @@ private fun CompactPlaybackStatusText(
 private fun RoomPlaybackControlsSection(
     viewModel: RoomViewModel,
     isPlaying: Boolean,
+    isMutedLocally: Boolean = false,
     theme: com.nddfeon.demonic.data.model.RoomThemePreset = com.nddfeon.demonic.data.model.RoomThemePreset.CYBER_NEON,
     modifier: Modifier = Modifier
 ) {
@@ -1518,6 +1615,23 @@ private fun RoomPlaybackControlsSection(
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Host local speaker mute toggle
+                IconButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        viewModel.toggleLocalMute()
+                    }
+                ) {
+                    Icon(
+                        imageVector = if (isMutedLocally) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                        contentDescription = "Local Mute",
+                        tint = if (isMutedLocally) Color(0xFFFFB300) else DemonicTextMuted,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(2.dp))
+
                 IconButton(
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -1570,6 +1684,103 @@ private fun RoomPlaybackControlsSection(
                         imageVector = Icons.Default.FastForward,
                         contentDescription = "Forward 10s",
                         tint = if (hasDuration) theme.primaryColor else DemonicTextMuted.copy(alpha = 0.4f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ListenerAudioSyncSection(
+    isMutedLocally: Boolean,
+    driftSeconds: Float,
+    isSyncing: Boolean,
+    theme: com.nddfeon.demonic.data.model.RoomThemePreset,
+    onToggleMute: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val view = LocalView.current
+    val shape = RoundedCornerShape(12.dp)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp)
+            .clip(shape)
+            .background(
+                if (isMutedLocally) Brush.verticalGradient(listOf(Color(0xFF261908), Color(0xFF1C1306)))
+                else Brush.horizontalGradient(listOf(theme.surfaceColor, theme.surfaceVariantColor))
+            )
+            .border(
+                1.dp,
+                if (isMutedLocally) Color(0xFFFFB300) else theme.borderColor,
+                shape
+            )
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(if (isSyncing) Color(0xFFFFB300) else if (isMutedLocally) Color(0xFFFF9800) else Color(0xFF00FF66))
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Column {
+                    Text(
+                        text = if (isMutedLocally) "COFFEE BREAK (AFK)" else if (isSyncing) "SYNCING ⚡" else "LISTENING IN SYNC ⚡",
+                        color = if (isMutedLocally) Color(0xFFFFB74D) else DemonicTextPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = if (isMutedLocally) "Room is playing live • Audio muted for you" else "Locked to Host • Sub-second precision",
+                        color = DemonicTextMuted,
+                        fontSize = 9.5.sp
+                    )
+                }
+            }
+
+            // Tactile Mute Toggle Button
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (isMutedLocally) Color(0xFFFFB300)
+                        else theme.primaryColor.copy(alpha = 0.2f)
+                    )
+                    .border(
+                        1.dp,
+                        if (isMutedLocally) Color(0xFFFFD54F) else theme.primaryColor.copy(alpha = 0.6f),
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        onToggleMute()
+                    }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (isMutedLocally) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                        contentDescription = "Local Mute",
+                        tint = if (isMutedLocally) Color.Black else theme.primaryColor,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = if (isMutedLocally) "Unmute 🔊" else "Mute for Me 🔇",
+                        color = if (isMutedLocally) Color.Black else theme.primaryColor,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black
                     )
                 }
             }

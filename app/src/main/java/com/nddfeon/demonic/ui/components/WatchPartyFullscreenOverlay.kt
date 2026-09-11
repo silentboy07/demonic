@@ -42,6 +42,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -106,6 +108,8 @@ fun WatchPartyFullscreenOverlay(
     onSendReaction: (String) -> Unit,
     onSendChatMessage: (String) -> Unit,
     onExitFullscreen: () -> Unit,
+    isMutedLocally: Boolean = false,
+    onToggleLocalMute: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
@@ -223,6 +227,26 @@ fun WatchPartyFullscreenOverlay(
                             driftSeconds = driftSeconds,
                             isSyncing = isSyncing
                         )
+
+                        // Local Mute / AFK Toggle
+                        IconButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                onToggleLocalMute()
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(if (isMutedLocally) Color(0xFF38230D) else Color.Black.copy(alpha = 0.5f))
+                                .border(1.dp, if (isMutedLocally) Color(0xFFFFB300) else Color.Transparent, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (isMutedLocally) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                contentDescription = "Local Mute",
+                                tint = if (isMutedLocally) Color(0xFFFFC107) else Color.White,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
 
                         // Screen Orientation Toggle
                         IconButton(

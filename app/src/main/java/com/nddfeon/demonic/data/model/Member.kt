@@ -9,5 +9,6 @@ data class Member(
     val photoUrl: String = "",
     val joinedAt: Long = 0L,
     val isHost: Boolean = false,
-    val timedOutUntil: Long = 0L
+    val timedOutUntil: Long = 0L,
+    val isAfk: Boolean = false
 )

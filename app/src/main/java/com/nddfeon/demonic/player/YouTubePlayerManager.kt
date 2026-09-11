@@ -32,6 +32,9 @@ class YouTubePlayerManager @Inject constructor() {
     private val _playbackError = MutableStateFlow<String?>(null)
     val playbackError: StateFlow<String?> = _playbackError.asStateFlow()
 
+    private val _isMutedLocally = MutableStateFlow(false)
+    val isMutedLocally: StateFlow<Boolean> = _isMutedLocally.asStateFlow()
+
     private var pendingVideoId: String = ""
     private var pendingStartSeconds: Float = 0f
     private var pendingAutoPlay: Boolean = false
@@ -44,6 +47,12 @@ class YouTubePlayerManager @Inject constructor() {
             android.util.Log.d("DemonicPlayer", "YouTubePlayer onReady received!")
             youTubePlayerInstance = youTubePlayer
             _isReady.value = true
+
+            if (_isMutedLocally.value) {
+                try {
+                    youTubePlayer.mute()
+                } catch (_: Exception) {}
+            }
 
             // If there was a pending video load/cue request
             val targetId = pendingVideoId.ifEmpty { _activeVideoId.value }
@@ -94,6 +103,28 @@ class YouTubePlayerManager @Inject constructor() {
         val clamped = seconds.coerceAtLeast(0f)
         _currentSecond.value = clamped
         youTubePlayerInstance?.seekTo(clamped)
+    }
+
+    fun toggleLocalMute(): Boolean {
+        val newMute = !_isMutedLocally.value
+        setLocalMute(newMute)
+        return newMute
+    }
+
+    fun setLocalMute(mute: Boolean) {
+        _isMutedLocally.value = mute
+        val player = youTubePlayerInstance
+        if (player != null) {
+            try {
+                if (mute) {
+                    player.mute()
+                } else {
+                    player.unMute()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("DemonicPlayer", "Error toggling local mute: ${e.message}")
+            }
+        }
     }
 
     fun loadOrCueVideo(videoId: String, startSeconds: Float = 0f, autoPlay: Boolean = false) {

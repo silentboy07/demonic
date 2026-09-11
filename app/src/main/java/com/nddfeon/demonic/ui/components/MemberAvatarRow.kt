@@ -276,6 +276,21 @@ fun MemberAvatarItem(
                         modifier = Modifier.size(10.dp)
                     )
                 }
+            } else if (member.isAfk) {
+                // Coffee AFK / Muted Badge
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 2.dp, y = (-2).dp)
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF38230D))
+                        .border(1.dp, Color(0xFFFFB300), CircleShape)
+                        .shadow(4.dp, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "☕", fontSize = 9.sp)
+                }
             }
         }
 
@@ -283,11 +298,13 @@ fun MemberAvatarItem(
 
         Text(
             text = when {
+                member.isAfk -> "${member.name} ☕"
                 member.isHost -> "${member.name} 👑"
                 isDj -> "${member.name} 🎧"
                 else -> member.name
             },
             color = when {
+                member.isAfk -> Color(0xFFFFB74D)
                 member.isHost -> DemonicWarningAmber
                 isDj -> DemonicViolet
                 else -> Color(0xFFA59FB1)
