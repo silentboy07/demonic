@@ -36,10 +36,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.ScreenRotation
+import com.nddfeon.demonic.player.YouTubeVideoQuality
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.VolumeOff
@@ -110,12 +112,15 @@ fun WatchPartyFullscreenOverlay(
     onExitFullscreen: () -> Unit,
     isMutedLocally: Boolean = false,
     onToggleLocalMute: () -> Unit = {},
+    currentQuality: YouTubeVideoQuality = YouTubeVideoQuality.AUTO,
+    onSelectQuality: (YouTubeVideoQuality) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
     var showControls by remember { mutableStateOf(true) }
     var showFloatingChat by remember { mutableStateOf(true) }
     var showQuickChatDialog by remember { mutableStateOf(false) }
+    var showQualityDialog by remember { mutableStateOf(false) }
 
     // Auto-hide controls after 4.5 seconds of inactivity
     LaunchedEffect(showControls) {
@@ -246,6 +251,37 @@ fun WatchPartyFullscreenOverlay(
                                 tint = if (isMutedLocally) Color(0xFFFFC107) else Color.White,
                                 modifier = Modifier.size(19.dp)
                             )
+                        }
+
+                        // Video Quality Selector Button
+                        Box(
+                            modifier = Modifier
+                                .height(36.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .border(1.dp, DemonicBorder.copy(alpha = 0.6f), RoundedCornerShape(18.dp))
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    showQualityDialog = true
+                                }
+                                .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.HighQuality,
+                                    contentDescription = "Video Quality",
+                                    tint = DemonicCrimson,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = currentQuality.badge,
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
 
                         // Screen Orientation Toggle
@@ -664,6 +700,14 @@ fun WatchPartyFullscreenOverlay(
                         Text("Cancel", color = DemonicTextMuted)
                     }
                 }
+            )
+        }
+
+        if (showQualityDialog) {
+            YouTubeQualityDialog(
+                currentQuality = currentQuality,
+                onSelectQuality = { onSelectQuality(it) },
+                onDismiss = { showQualityDialog = false }
             )
         }
     }

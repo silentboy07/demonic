@@ -44,8 +44,11 @@ import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.MoreVert
+import com.nddfeon.demonic.player.YouTubeVideoQuality
 import com.nddfeon.demonic.ui.components.WatchPartyFullscreenOverlay
+import com.nddfeon.demonic.ui.components.YouTubeQualityDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
@@ -196,6 +199,8 @@ fun RoomScreen(
     var showQrDialog by remember { mutableStateOf(false) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     val sleepTimerMinutes by viewModel.sleepTimerMinutes.collectAsState()
+    var showQualityDialog by remember { mutableStateOf(false) }
+    val currentQuality by viewModel.currentQuality.collectAsState()
     var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
 
     val activity = context as? android.app.Activity
@@ -602,6 +607,17 @@ fun RoomScreen(
                                     }
                                 )
                                 DropdownMenuItem(
+                                    text = { Text("Video Quality: ${currentQuality.badge} ⚙️", color = DemonicTextPrimary, fontSize = 13.sp) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.HighQuality, contentDescription = null, tint = DemonicCrimson, modifier = Modifier.size(18.dp))
+                                    },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                        showQualityDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
                                     text = {
                                         Text(
                                             if (sleepTimerMinutes != null) "Sleep Timer (${sleepTimerMinutes}m)" else "Sleep Timer",
@@ -703,6 +719,7 @@ fun RoomScreen(
                                 // Unblock programmatic playback in Android WebView & spoof mobile browser
                                 fun configureWebView(v: android.view.View) {
                                     if (v is android.webkit.WebView) {
+                                        viewModel.playerManager.attachWebView(v)
                                         v.settings.apply {
                                             javaScriptEnabled = true
                                             mediaPlaybackRequiresUserGesture = false
@@ -785,35 +802,71 @@ fun RoomScreen(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Fullscreen Watch Party Cinema Badge on Video Player
+                    // Video Quality Pill & Watch Party Cinema Badge Row on Video Player
                     if (!isInPip && !isFullscreen && playerDisplayMode == PlayerDisplayMode.VIDEO && hasVideo) {
-                        Box(
+                        Row(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .padding(10.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.Black.copy(alpha = 0.75f))
-                                .border(1.dp, currentTheme.primaryColor.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                                .clickable {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                                    isFullscreen = true
-                                }
-                                .padding(horizontal = 9.dp, vertical = 5.dp)
+                                .padding(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Fullscreen,
-                                    contentDescription = "Watch Party",
-                                    tint = currentTheme.primaryColor,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = "Cinema Party 🎬",
-                                    color = Color.White,
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            // Quality selector pill
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.Black.copy(alpha = 0.75f))
+                                    .border(1.dp, DemonicBorder.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                        showQualityDialog = true
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 5.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.HighQuality,
+                                        contentDescription = "Video Quality",
+                                        tint = DemonicCrimson,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = currentQuality.badge,
+                                        color = Color.White,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            // Cinema Party badge
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.Black.copy(alpha = 0.75f))
+                                    .border(1.dp, currentTheme.primaryColor.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                        isFullscreen = true
+                                    }
+                                    .padding(horizontal = 9.dp, vertical = 5.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Fullscreen,
+                                        contentDescription = "Watch Party",
+                                        tint = currentTheme.primaryColor,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = "Cinema Party 🎬",
+                                        color = Color.White,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
@@ -1068,7 +1121,9 @@ fun RoomScreen(
                             activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                         },
                         isMutedLocally = uiState.isMutedLocally,
-                        onToggleLocalMute = { viewModel.toggleLocalMute() }
+                        onToggleLocalMute = { viewModel.toggleLocalMute() },
+                        currentQuality = currentQuality,
+                        onSelectQuality = { viewModel.setVideoQuality(it) }
                     )
                 }
             }
@@ -1642,6 +1697,15 @@ fun RoomScreen(
                     onTimeoutUser = { mins ->
                         viewModel.timeoutMember(msg.senderId, msg.senderName, mins)
                     }
+                )
+            }
+
+            // Video Quality Selection Dialog
+            if (showQualityDialog) {
+                YouTubeQualityDialog(
+                    currentQuality = currentQuality,
+                    onSelectQuality = { viewModel.setVideoQuality(it) },
+                    onDismiss = { showQualityDialog = false }
                 )
             }
         }

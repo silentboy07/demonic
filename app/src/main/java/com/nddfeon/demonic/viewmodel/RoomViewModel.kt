@@ -19,6 +19,7 @@ import com.nddfeon.demonic.player.DemonicPlaybackService
 import com.nddfeon.demonic.player.YouTubePlayerManager
 import com.nddfeon.demonic.player.YouTubeSearchManager
 import com.nddfeon.demonic.player.YouTubeUrlParser
+import com.nddfeon.demonic.player.YouTubeVideoQuality
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -141,18 +142,41 @@ class RoomViewModel @Inject constructor(
             }
         }
         startDriftMonitoringLoop()
+        viewModelScope.launch {
+            delay(10000L)
+            if (lastKnownRoom == null && !_uiState.value.isRoomClosed) {
+                _uiState.value = _uiState.value.copy(
+                    isRoomClosed = true,
+                    errorMessage = "Room not found or has ended."
+                )
+            }
+        }
     }
 
     private fun observeRoomState() {
         viewModelScope.launch {
+            val observeStartTime = System.currentTimeMillis()
             roomRepository.observeRoom(roomCode).collect { room ->
                 if (room == null) {
-                    _uiState.value = _uiState.value.copy(
-                        room = null,
-                        isRoomClosed = true,
-                        errorMessage = "Room has been ended."
-                    )
-                    playerManager.pause()
+                    if (lastKnownRoom != null) {
+                        _uiState.value = _uiState.value.copy(
+                            room = null,
+                            isRoomClosed = true,
+                            errorMessage = "Room has been ended."
+                        )
+                        playerManager.pause()
+                        return@collect
+                    }
+                    val elapsed = System.currentTimeMillis() - observeStartTime
+                    if (elapsed > 8000L) {
+                        _uiState.value = _uiState.value.copy(
+                            room = null,
+                            isRoomClosed = true,
+                            errorMessage = "Room not found or has ended."
+                        )
+                        playerManager.pause()
+                        return@collect
+                    }
                     return@collect
                 }
                 val currentUid = getEffectiveUser().uid
@@ -748,6 +772,12 @@ class RoomViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
+
+    val currentQuality: StateFlow<YouTubeVideoQuality> = playerManager.currentQuality
+
+    fun setVideoQuality(quality: YouTubeVideoQuality) {
+        playerManager.setQuality(quality)
     }
 
 

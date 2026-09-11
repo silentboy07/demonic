@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -201,34 +202,32 @@ class FirebaseRoomRepository @Inject constructor(
         )
         updatePublicRoomsList()
 
-        scope.launch {
-            try {
-                withTimeoutOrNull(3000L) {
-                    val roomsRef = database.getReference("rooms").child(roomCode)
-                    val roomData = hashMapOf<String, Any>(
-                        "hostId" to user.uid,
-                        "videoId" to initialVideoId,
-                        "state" to "paused",
-                        "position" to 0.0,
-                        "updatedAt" to ServerValue.TIMESTAMP,
-                        "videoTitle" to "Synchronized Playback",
-                        "isPublic" to true,
-                        "theme" to "CYBER_NEON",
-                        "visualizerStyle" to "CIRCULAR"
-                    )
-                    roomsRef.setValue(roomData).await()
+        try {
+            withTimeoutOrNull(4000L) {
+                val roomsRef = database.getReference("rooms").child(roomCode)
+                val roomData = hashMapOf<String, Any>(
+                    "hostId" to user.uid,
+                    "videoId" to initialVideoId,
+                    "state" to "paused",
+                    "position" to 0.0,
+                    "updatedAt" to ServerValue.TIMESTAMP,
+                    "videoTitle" to (if (initialVideoId.isNotEmpty()) "Synchronized Playback" else ""),
+                    "isPublic" to true,
+                    "theme" to "CYBER_NEON",
+                    "visualizerStyle" to "CIRCULAR"
+                )
+                roomsRef.setValue(roomData).await()
 
-                    val memberData = hashMapOf<String, Any>(
-                        "name" to user.displayName,
-                        "photoUrl" to (user.photoUrl ?: ""),
-                        "joinedAt" to ServerValue.TIMESTAMP
-                    )
-                    val memberRef = roomsRef.child("members").child(user.uid)
-                    memberRef.setValue(memberData).await()
-                    memberRef.onDisconnect().removeValue()
-                }
-            } catch (_: Exception) {}
-        }
+                val memberData = hashMapOf<String, Any>(
+                    "name" to user.displayName,
+                    "photoUrl" to (user.photoUrl ?: ""),
+                    "joinedAt" to ServerValue.TIMESTAMP
+                )
+                val memberRef = roomsRef.child("members").child(user.uid)
+                memberRef.setValue(memberData).await()
+                memberRef.onDisconnect().removeValue()
+            }
+        } catch (_: Exception) {}
 
         return Result.success(roomCode)
     }
@@ -428,7 +427,12 @@ class FirebaseRoomRepository @Inject constructor(
             }
         }
 
-        return merge(localFlow, firebaseFlow)
+        val cached = localFlow.value
+        return if (cached != null) {
+            merge(flowOf(cached), firebaseFlow)
+        } else {
+            firebaseFlow
+        }
     }
 
     override fun observeMembers(roomCode: String, hostId: String): Flow<List<Member>> {

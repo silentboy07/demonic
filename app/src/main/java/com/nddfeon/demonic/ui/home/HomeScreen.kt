@@ -473,7 +473,11 @@ fun HomeScreen(
 
                         DemonicButton(
                             text = "Join",
-                            onClick = { onNavigateToRoom(room.roomCode) },
+                            onClick = {
+                                viewModel.joinRoom(room.roomCode) { joinedCode ->
+                                    onNavigateToRoom(joinedCode)
+                                }
+                            },
                             modifier = Modifier.height(34.dp)
                         )
                     }

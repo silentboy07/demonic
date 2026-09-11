@@ -1,18 +1,45 @@
 package com.nddfeon.demonic.player
 
+import android.webkit.WebView
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.lang.ref.WeakReference
 import javax.inject.Inject
 import javax.inject.Singleton
+
+enum class YouTubeVideoQuality(
+    val label: String,
+    val code: String,
+    val badge: String,
+    val description: String
+) {
+    AUTO("Auto", "default", "AUTO", "Optimized automatically"),
+    P1080("1080p Full HD", "hd1080", "1080p", "Crisp Full HD"),
+    P720("720p HD", "hd720", "720p", "High definition"),
+    P480("480p SD", "large", "480p", "Standard definition"),
+    P360("360p Medium", "medium", "360p", "Balanced quality"),
+    P240("240p Low", "small", "240p", "Fast loading"),
+    P144("144p Data Saver", "tiny", "144p", "Minimal data usage");
+
+    companion object {
+        fun fromCode(code: String): YouTubeVideoQuality {
+            return entries.firstOrNull { it.code.equals(code, ignoreCase = true) } ?: AUTO
+        }
+    }
+}
 
 @Singleton
 class YouTubePlayerManager @Inject constructor() {
 
     private var youTubePlayerInstance: YouTubePlayer? = null
+    private var webViewRef: WeakReference<WebView>? = null
+
+    private val _currentQuality = MutableStateFlow(YouTubeVideoQuality.AUTO)
+    val currentQuality: StateFlow<YouTubeVideoQuality> = _currentQuality.asStateFlow()
 
     private val _isReady = MutableStateFlow(false)
     val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
@@ -64,6 +91,8 @@ class YouTubePlayerManager @Inject constructor() {
                     youTubePlayer.cueVideo(targetId, pendingStartSeconds)
                 }
             }
+
+            applyQualityJs(_currentQuality.value)
         }
 
         override fun onStateChange(youTubePlayer: YouTubePlayer, state: PlayerConstants.PlayerState) {
@@ -143,13 +172,67 @@ class YouTubePlayerManager @Inject constructor() {
             } else {
                 player.cueVideo(videoId, startSeconds)
             }
+            applyQualityJs(_currentQuality.value)
         } else {
             android.util.Log.d("DemonicPlayer", "loadOrCueVideo: Player instance is null, queued as pending: $videoId")
         }
     }
 
+    fun attachWebView(webView: WebView) {
+        webViewRef = WeakReference(webView)
+        applyQualityJs(_currentQuality.value)
+    }
+
+    fun setQuality(quality: YouTubeVideoQuality) {
+        _currentQuality.value = quality
+        applyQualityJs(quality)
+    }
+
+    private fun applyQualityJs(quality: YouTubeVideoQuality) {
+        val code = quality.code
+        val js = """
+            (function() {
+                try {
+                    var p = window.player || (typeof player !== 'undefined' ? player : null);
+                    if (p) {
+                        if (typeof p.setPlaybackQuality === 'function') {
+                            p.setPlaybackQuality('$code');
+                        }
+                        if (typeof p.setPlaybackQualityRange === 'function') {
+                            p.setPlaybackQualityRange('$code', '$code');
+                        }
+                    }
+                    var ytp = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                    if (ytp) {
+                        if (typeof ytp.setPlaybackQualityRange === 'function') {
+                            ytp.setPlaybackQualityRange('$code', '$code');
+                        }
+                        if (typeof ytp.setPlaybackQuality === 'function') {
+                            ytp.setPlaybackQuality('$code');
+                        }
+                    }
+                    try {
+                        localStorage.setItem('yt-player-quality', JSON.stringify({
+                            data: '$code',
+                            creation: Date.now()
+                        }));
+                    } catch(e) {}
+                } catch(err) {
+                    console.error('Failed to set YouTube quality:', err);
+                }
+            })();
+        """.trimIndent()
+
+        webViewRef?.get()?.post {
+            try {
+                webViewRef?.get()?.evaluateJavascript(js, null)
+            } catch (_: Exception) {}
+        }
+    }
+
     fun release() {
         youTubePlayerInstance = null
+        webViewRef = null
         _isReady.value = false
         pendingVideoId = ""
         pendingStartSeconds = 0f
