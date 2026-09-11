@@ -62,6 +62,7 @@ dependencies {
     // YouTube Player & Coil
     implementation(libs.youtube.player.core)
     implementation(libs.coil.compose)
+    implementation("androidx.media:media:1.7.0")
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

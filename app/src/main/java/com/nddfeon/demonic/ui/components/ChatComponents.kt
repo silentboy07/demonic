@@ -81,6 +81,7 @@ import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.nddfeon.demonic.data.model.ChatMessage
+import com.nddfeon.demonic.data.model.RoomThemePreset
 import com.nddfeon.demonic.ui.theme.DemonicBorder
 import com.nddfeon.demonic.ui.theme.DemonicCrimson
 import com.nddfeon.demonic.ui.theme.DemonicCrimsonDark
@@ -144,9 +145,10 @@ fun QuotedReplyInBubble(
     senderName: String,
     text: String,
     isOwnMessage: Boolean,
+    theme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
     modifier: Modifier = Modifier
 ) {
-    val accentColor = if (isOwnMessage) Color(0xFFFFD54F) else DemonicCrimson
+    val accentColor = if (isOwnMessage) Color(0xFFFFD54F) else theme.primaryColor
 
     Box(
         modifier = modifier
@@ -194,6 +196,7 @@ fun ChatMessageItem(
     isOwnMessage: Boolean,
     isHost: Boolean = false,
     isDj: Boolean = false,
+    theme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
     onLongClick: ((ChatMessage) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -256,8 +259,8 @@ fun ChatMessageItem(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF221C2E))
-                        .border(1.dp, DemonicBorder, CircleShape),
+                        .background(theme.surfaceColor)
+                        .border(1.dp, theme.borderColor, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     if (message.senderPhotoUrl.isNotEmpty()) {
@@ -297,7 +300,7 @@ fun ChatMessageItem(
                         if (!isOwnMessage) {
                             Text(
                                 text = message.senderName,
-                                color = DemonicViolet,
+                                color = theme.secondaryColor,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -320,14 +323,14 @@ fun ChatMessageItem(
                         .clip(bubbleShape)
                         .background(
                             if (isOwnMessage) {
-                                Brush.horizontalGradient(listOf(DemonicCrimson, DemonicCrimsonDark))
+                                Brush.horizontalGradient(theme.chatOwnGradient)
                             } else {
-                                Brush.linearGradient(listOf(Color(0xFF1B1724), Color(0xFF14111C)))
+                                Brush.linearGradient(listOf(theme.surfaceVariantColor, theme.surfaceColor))
                             }
                         )
                         .border(
                             width = 1.dp,
-                            color = if (isOwnMessage) DemonicCrimson.copy(alpha = 0.45f) else DemonicBorder,
+                            color = if (isOwnMessage) theme.primaryColor.copy(alpha = 0.55f) else theme.borderColor,
                             shape = bubbleShape
                         )
                         .combinedClickable(
@@ -346,6 +349,7 @@ fun ChatMessageItem(
                                 senderName = message.replyToSenderName.ifBlank { "User" },
                                 text = message.replyToText,
                                 isOwnMessage = isOwnMessage,
+                                theme = theme,
                                 modifier = Modifier.padding(bottom = 6.dp)
                             )
                         }
@@ -677,6 +681,7 @@ fun ChatMessageActionDialog(
 fun ReplyPreviewBanner(
     replyingTo: ChatMessage,
     onCancelReply: () -> Unit,
+    theme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
@@ -685,8 +690,8 @@ fun ReplyPreviewBanner(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
-            .background(Color(0xFF1A1426))
-            .border(1.dp, DemonicViolet.copy(alpha = 0.5f), RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+            .background(theme.surfaceColor)
+            .border(1.dp, theme.primaryColor.copy(alpha = 0.5f), RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
         Row(
@@ -698,13 +703,13 @@ fun ReplyPreviewBanner(
                     .width(3.dp)
                     .height(28.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(DemonicViolet)
+                    .background(theme.primaryColor)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Replying to @${replyingTo.senderName}",
-                    color = DemonicViolet,
+                    text = "↳ Replying to @${replyingTo.senderName}",
+                    color = theme.primaryColor,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -740,6 +745,7 @@ fun ReplyPreviewBanner(
 @Composable
 fun ScrollToBottomFloatingButton(
     visible: Boolean,
+    theme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -753,15 +759,15 @@ fun ScrollToBottomFloatingButton(
     ) {
         Box(
             modifier = Modifier
-                .shadow(10.dp, CircleShape, spotColor = DemonicCrimson)
+                .shadow(10.dp, CircleShape, spotColor = theme.primaryColor)
                 .size(38.dp)
                 .clip(CircleShape)
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color(0xFF2E2242), Color(0xFF1B1428))
+                        listOf(theme.surfaceVariantColor, theme.surfaceColor)
                     )
                 )
-                .border(1.dp, DemonicViolet.copy(alpha = 0.8f), CircleShape)
+                .border(1.dp, theme.primaryColor.copy(alpha = 0.8f), CircleShape)
                 .clickable {
                     view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     onClick()
@@ -781,6 +787,7 @@ fun ScrollToBottomFloatingButton(
 @Composable
 fun TypingIndicatorBubble(
     typingUsers: List<String>,
+    theme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
     modifier: Modifier = Modifier
 ) {
     if (typingUsers.isEmpty()) return
@@ -828,8 +835,8 @@ fun TypingIndicatorBubble(
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFF171321))
-                .border(1.dp, DemonicBorder, RoundedCornerShape(14.dp))
+                .background(theme.surfaceColor)
+                .border(1.dp, theme.borderColor, RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Row(
@@ -846,21 +853,21 @@ fun TypingIndicatorBubble(
                             .offset(y = dot1Offset.dp)
                             .size(5.dp)
                             .clip(CircleShape)
-                            .background(DemonicCrimson)
+                            .background(theme.primaryColor)
                     )
                     Box(
                         modifier = Modifier
                             .offset(y = dot2Offset.dp)
                             .size(5.dp)
                             .clip(CircleShape)
-                            .background(DemonicCrimson)
+                            .background(theme.primaryColor)
                     )
                     Box(
                         modifier = Modifier
                             .offset(y = dot3Offset.dp)
                             .size(5.dp)
                             .clip(CircleShape)
-                            .background(DemonicCrimson)
+                            .background(theme.primaryColor)
                     )
                 }
 
@@ -884,6 +891,7 @@ fun ChatInputBar(
     onCancelReply: () -> Unit = {},
     isTimedOut: Boolean = false,
     timedOutUntil: Long = 0L,
+    theme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
@@ -901,10 +909,10 @@ fun ChatInputBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF0F0D15))
+            .background(theme.surfaceColor)
             .border(
                 width = 1.dp,
-                color = if (isTimedOut) Color(0xFF5A1A22) else Color(0xFF261F33),
+                color = if (isTimedOut) Color(0xFF5A1A22) else theme.borderColor,
                 shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
             )
     ) {
@@ -945,7 +953,8 @@ fun ChatInputBar(
                 if (replyingTo != null) {
                     ReplyPreviewBanner(
                         replyingTo = replyingTo,
-                        onCancelReply = onCancelReply
+                        onCancelReply = onCancelReply,
+                        theme = theme
                     )
                 }
             }
@@ -962,8 +971,8 @@ fun ChatInputBar(
                     modifier = Modifier
                         .weight(1f)
                         .clip(shape)
-                        .background(DemonicSurfaceVariant)
-                        .border(1.dp, if (replyingTo != null) DemonicViolet else DemonicBorder, shape)
+                        .background(theme.surfaceVariantColor)
+                        .border(1.dp, if (replyingTo != null) theme.primaryColor else theme.borderColor, shape)
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
@@ -991,7 +1000,7 @@ fun ChatInputBar(
                             color = DemonicTextPrimary,
                             fontSize = 14.sp
                         ),
-                        cursorBrush = SolidColor(DemonicCrimson)
+                        cursorBrush = SolidColor(theme.primaryColor)
                     )
                 }
 
@@ -1003,14 +1012,19 @@ fun ChatInputBar(
                     modifier = Modifier
                         .size(42.dp)
                         .scale(sendScale)
-                        .shadow(if (canSend) 8.dp else 0.dp, CircleShape, spotColor = DemonicCrimson)
+                        .shadow(if (canSend) 8.dp else 0.dp, CircleShape, spotColor = theme.primaryColor)
                         .clip(CircleShape)
                         .background(
                             if (canSend) {
-                                Brush.linearGradient(listOf(DemonicCrimson, DemonicCrimsonDark))
+                                Brush.linearGradient(theme.buttonGradient)
                             } else {
-                                Brush.linearGradient(listOf(Color(0xFF231C2E), Color(0xFF191322)))
+                                Brush.linearGradient(listOf(theme.surfaceColor, theme.surfaceVariantColor))
                             }
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = if (canSend) theme.primaryColor.copy(alpha = 0.5f) else theme.borderColor,
+                            shape = CircleShape
                         )
                         .clickable(
                             interactionSource = interactionSource,
@@ -1025,7 +1039,7 @@ fun ChatInputBar(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Send",
-                        tint = if (canSend) DemonicTextPrimary else DemonicTextMuted,
+                        tint = if (canSend) Color.White else DemonicTextMuted,
                         modifier = Modifier.size(18.dp)
                     )
                 }

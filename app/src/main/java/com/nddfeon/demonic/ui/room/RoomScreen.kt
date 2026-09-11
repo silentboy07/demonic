@@ -266,8 +266,32 @@ fun RoomScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(currentTheme.backgroundColor)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        currentTheme.backgroundColor,
+                        currentTheme.surfaceColor.copy(alpha = 0.85f),
+                        currentTheme.backgroundColor
+                    )
+                )
+            )
     ) {
+        // Ambient Neon Glow Top Layer
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(320.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            currentTheme.glowColor,
+                            currentTheme.primaryColor.copy(alpha = 0.12f),
+                            Color.Transparent
+                        ),
+                        radius = 900f
+                    )
+                )
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -310,7 +334,7 @@ fun RoomScreen(
                         Column {
                             Text(
                                 text = "ROOM ${uiState.roomCode}",
-                                color = DemonicCrimson,
+                                color = currentTheme.primaryColor,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 1.sp
@@ -346,8 +370,8 @@ fun RoomScreen(
                             modifier = Modifier
                                 .height(34.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(DemonicSurfaceVariant)
-                                .border(1.dp, DemonicBorder, RoundedCornerShape(10.dp))
+                                .background(currentTheme.surfaceColor)
+                                .border(1.dp, currentTheme.borderColor, RoundedCornerShape(10.dp))
                                 .clickable {
                                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                     showMembersSheet = true
@@ -360,13 +384,13 @@ fun RoomScreen(
                                     modifier = Modifier
                                         .size(6.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF00F5D4))
+                                        .background(currentTheme.secondaryColor)
                                 )
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Icon(
                                     imageVector = Icons.Default.People,
                                     contentDescription = "Members",
-                                    tint = DemonicTextPrimary,
+                                    tint = currentTheme.secondaryColor,
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -515,10 +539,10 @@ fun RoomScreen(
                         .clip(RoundedCornerShape(10.dp))
                         .background(
                             Brush.horizontalGradient(
-                                listOf(DemonicSurface, Color(0xFF1B1429))
+                                listOf(currentTheme.surfaceColor, currentTheme.surfaceVariantColor)
                             )
                         )
-                        .border(1.dp, DemonicViolet.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                        .border(1.dp, currentTheme.borderColor, RoundedCornerShape(10.dp))
                         .clickable {
                             view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                             showExplorerSheet = true
@@ -529,7 +553,7 @@ fun RoomScreen(
                     Icon(
                         imageVector = Icons.Default.Headphones,
                         contentDescription = "Music Hub",
-                        tint = DemonicViolet,
+                        tint = currentTheme.secondaryColor,
                         modifier = Modifier.size(17.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -548,10 +572,10 @@ fun RoomScreen(
                     modifier = Modifier
                         .height(38.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (uiState.queue.isNotEmpty()) DemonicCrimsonDark.copy(alpha = 0.5f) else DemonicSurface)
+                        .background(if (uiState.queue.isNotEmpty()) currentTheme.surfaceVariantColor else currentTheme.surfaceColor)
                         .border(
                             1.dp,
-                            if (uiState.queue.isNotEmpty()) DemonicCrimson else DemonicBorder,
+                            if (uiState.queue.isNotEmpty()) currentTheme.primaryColor else currentTheme.borderColor,
                             RoundedCornerShape(10.dp)
                         )
                         .clickable { showQueueSheet = true }
@@ -562,13 +586,13 @@ fun RoomScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                             contentDescription = "Queue",
-                            tint = if (uiState.queue.isNotEmpty()) DemonicCrimson else DemonicTextPrimary,
+                            tint = if (uiState.queue.isNotEmpty()) currentTheme.primaryColor else DemonicTextPrimary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "(${uiState.queue.size})",
-                            color = if (uiState.queue.isNotEmpty()) DemonicCrimson else DemonicTextPrimary,
+                            color = if (uiState.queue.isNotEmpty()) currentTheme.primaryColor else DemonicTextPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -1062,6 +1086,7 @@ fun RoomScreen(
                         title = uiState.room?.videoTitle ?: "",
                         isPlaying = uiState.room?.isPlaying ?: false,
                         nextTrackTitle = uiState.queue.firstOrNull()?.title,
+                        theme = currentTheme,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
                         onClick = { showQueueSheet = true }
                     )
@@ -1071,7 +1096,8 @@ fun RoomScreen(
                 if (uiState.canControlPlayback && playerDisplayMode != PlayerDisplayMode.COMPACT) {
                     RoomPlaybackControlsSection(
                         viewModel = viewModel,
-                        isPlaying = uiState.room?.isPlaying ?: false
+                        isPlaying = uiState.room?.isPlaying ?: false,
+                        theme = currentTheme
                     )
                 }
 
@@ -1108,15 +1134,15 @@ fun RoomScreen(
                                 modifier = Modifier
                                     .padding(horizontal = 24.dp)
                                     .clip(RoundedCornerShape(16.dp))
-                                    .background(Color(0xFF130F1C))
-                                    .border(1.dp, DemonicBorder, RoundedCornerShape(16.dp))
+                                    .background(currentTheme.surfaceColor)
+                                    .border(1.dp, currentTheme.borderColor, RoundedCornerShape(16.dp))
                                     .padding(horizontal = 20.dp, vertical = 16.dp)
                             ) {
                                 Text(text = "🎵", fontSize = 28.sp)
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = "Welcome to Room ${uiState.roomCode}",
-                                    color = DemonicTextPrimary,
+                                    color = currentTheme.primaryColor,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -1143,6 +1169,7 @@ fun RoomScreen(
                                     isOwnMessage = isOwnMessage,
                                     isHost = (message.senderId == uiState.room?.hostId),
                                     isDj = (message.senderId == uiState.room?.djId),
+                                    theme = currentTheme,
                                     onLongClick = { actionMessage = it }
                                 )
                             }
@@ -1151,6 +1178,7 @@ fun RoomScreen(
                         // Floating Scroll-To-Bottom Pill Button
                         ScrollToBottomFloatingButton(
                             visible = !isScrolledToBottom,
+                            theme = currentTheme,
                             onClick = {
                                 scope.launch {
                                     listState.animateScrollToItem(uiState.messages.size - 1)
@@ -1171,6 +1199,7 @@ fun RoomScreen(
                 ) {
                     TypingIndicatorBubble(
                         typingUsers = uiState.typingUsers,
+                        theme = currentTheme,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
                     )
                 }
@@ -1240,6 +1269,7 @@ fun RoomScreen(
                     onCancelReply = { viewModel.clearReply() },
                     isTimedOut = isCurrentMemberTimedOut,
                     timedOutUntil = currentMember?.timedOutUntil ?: 0L,
+                    theme = currentTheme,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
@@ -1430,6 +1460,7 @@ private fun CompactPlaybackStatusText(
 private fun RoomPlaybackControlsSection(
     viewModel: RoomViewModel,
     isPlaying: Boolean,
+    theme: com.nddfeon.demonic.data.model.RoomThemePreset = com.nddfeon.demonic.data.model.RoomThemePreset.CYBER_NEON,
     modifier: Modifier = Modifier
 ) {
     val currentSecond by viewModel.playerManager.currentSecond.collectAsState()
@@ -1464,12 +1495,12 @@ private fun RoomPlaybackControlsSection(
             enabled = hasDuration,
             valueRange = 0f..safeDuration,
             colors = SliderDefaults.colors(
-                thumbColor = if (hasDuration) DemonicCrimson else Color.Transparent,
-                activeTrackColor = DemonicCrimson,
-                inactiveTrackColor = Color(0xFF2B2238),
+                thumbColor = if (hasDuration) theme.primaryColor else Color.Transparent,
+                activeTrackColor = theme.primaryColor,
+                inactiveTrackColor = theme.borderColor,
                 disabledThumbColor = Color.Transparent,
-                disabledActiveTrackColor = DemonicSurfaceVariant,
-                disabledInactiveTrackColor = Color(0xFF2B2238)
+                disabledActiveTrackColor = theme.surfaceVariantColor,
+                disabledInactiveTrackColor = theme.borderColor
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -1497,7 +1528,7 @@ private fun RoomPlaybackControlsSection(
                     Icon(
                         imageVector = Icons.Default.FastRewind,
                         contentDescription = "Rewind 10s",
-                        tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
+                        tint = if (hasDuration) theme.primaryColor else DemonicTextMuted.copy(alpha = 0.4f)
                     )
                 }
 
@@ -1506,13 +1537,12 @@ private fun RoomPlaybackControlsSection(
                 Box(
                     modifier = Modifier
                         .size(44.dp)
-                        .shadow(12.dp, CircleShape, spotColor = DemonicCrimson)
+                        .shadow(12.dp, CircleShape, spotColor = theme.primaryColor)
                         .clip(CircleShape)
                         .background(
-                            Brush.linearGradient(
-                                listOf(DemonicCrimson, DemonicCrimsonDark)
-                            )
+                            Brush.linearGradient(theme.buttonGradient)
                         )
+                        .border(1.dp, theme.secondaryColor.copy(alpha = 0.5f), CircleShape)
                         .clickable {
                             view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                             viewModel.togglePlayPause()
@@ -1539,7 +1569,7 @@ private fun RoomPlaybackControlsSection(
                     Icon(
                         imageVector = Icons.Default.FastForward,
                         contentDescription = "Forward 10s",
-                        tint = if (hasDuration) DemonicTextPrimary else DemonicTextMuted.copy(alpha = 0.4f)
+                        tint = if (hasDuration) theme.primaryColor else DemonicTextMuted.copy(alpha = 0.4f)
                     )
                 }
             }

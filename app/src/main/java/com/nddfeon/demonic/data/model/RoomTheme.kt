@@ -13,7 +13,9 @@ enum class RoomThemePreset(
     val backgroundColor: Color,
     val surfaceColor: Color,
     val surfaceVariantColor: Color,
-    val borderColor: Color
+    val borderColor: Color,
+    val chatOwnGradient: List<Color>,
+    val buttonGradient: List<Color>
 ) {
     CYBER_NEON(
         id = "CYBER_NEON",
@@ -25,7 +27,9 @@ enum class RoomThemePreset(
         backgroundColor = Color(0xFF0B0814),
         surfaceColor = Color(0xFF141022),
         surfaceVariantColor = Color(0xFF1F1833),
-        borderColor = Color(0xFF382B59)
+        borderColor = Color(0xFF382B59),
+        chatOwnGradient = listOf(Color(0xFF9C27B0), Color(0xFF673AB7)),
+        buttonGradient = listOf(Color(0xFFB026FF), Color(0xFF00F5FF))
     ),
     MATRIX_HACK(
         id = "MATRIX_HACK",
@@ -37,7 +41,9 @@ enum class RoomThemePreset(
         backgroundColor = Color(0xFF030B05),
         surfaceColor = Color(0xFF07190B),
         surfaceVariantColor = Color(0xFF0E2C14),
-        borderColor = Color(0xFF164721)
+        borderColor = Color(0xFF164721),
+        chatOwnGradient = listOf(Color(0xFF00C853), Color(0xFF007E33)),
+        buttonGradient = listOf(Color(0xFF00FF66), Color(0xFF009624))
     ),
     SUNSET_LOFI(
         id = "SUNSET_LOFI",
@@ -49,7 +55,9 @@ enum class RoomThemePreset(
         backgroundColor = Color(0xFF140A0F),
         surfaceColor = Color(0xFF1F1017),
         surfaceVariantColor = Color(0xFF2E1723),
-        borderColor = Color(0xFF4C2539)
+        borderColor = Color(0xFF4C2539),
+        chatOwnGradient = listOf(Color(0xFFFF9E00), Color(0xFFE65100)),
+        buttonGradient = listOf(Color(0xFFFF9E00), Color(0xFFFF4D6D))
     ),
     BLOOD_CRIMSON(
         id = "BLOOD_CRIMSON",
@@ -61,7 +69,9 @@ enum class RoomThemePreset(
         backgroundColor = Color(0xFF0A090D),
         surfaceColor = Color(0xFF14111A),
         surfaceVariantColor = Color(0xFF1E1927),
-        borderColor = Color(0xFF332A44)
+        borderColor = Color(0xFF332A44),
+        chatOwnGradient = listOf(Color(0xFFFF2A54), Color(0xFFC70039)),
+        buttonGradient = listOf(Color(0xFFFF2A54), Color(0xFFFF597B))
     );
 
     companion object {

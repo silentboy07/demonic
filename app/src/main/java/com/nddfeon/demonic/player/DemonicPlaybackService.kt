@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.player
+package com.nddfeon.demonic.player
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -11,7 +11,10 @@ import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.os.Build
 import android.os.IBinder
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
+import androidx.media.app.NotificationCompat as MediaNotificationCompat
 import coil.ImageLoader
 import coil.request.ImageRequest
 import com.nddfeon.demonic.DemonicApp
@@ -28,6 +31,7 @@ class DemonicPlaybackService : Service() {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.Main + job)
 
+    private var mediaSession: MediaSessionCompat? = null
     private var currentRoomCode: String = ""
     private var currentVideoId: String = ""
     private var currentVideoTitle: String = "Demonic Stream"
@@ -35,7 +39,7 @@ class DemonicPlaybackService : Service() {
     private var cachedThumbnail: Bitmap? = null
 
     companion object {
-        const val CHANNEL_ID = "demonic_playback_channel"
+        const val CHANNEL_ID = "demonic_playback_channel_v2"
         const val NOTIFICATION_ID = 666
 
         const val ACTION_START = "com.nddfeon.demonic.ACTION_START"
@@ -60,11 +64,13 @@ class DemonicPlaybackService : Service() {
                 putExtra(EXTRA_VIDEO_TITLE, title)
                 putExtra(EXTRA_IS_PLAYING, isPlaying)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (_: Exception) {}
         }
 
         fun updatePlayback(context: Context, videoId: String, title: String, isPlaying: Boolean) {
@@ -94,6 +100,47 @@ class DemonicPlaybackService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+
+        mediaSession = MediaSessionCompat(this, "DemonicPlaybackService").apply {
+            setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS)
+            setCallback(object : MediaSessionCompat.Callback() {
+                override fun onPlay() {
+                    val app = application as? DemonicApp
+                    app?.youTubePlayerManager?.play()
+                }
+
+                override fun onPause() {
+                    val app = application as? DemonicApp
+                    app?.youTubePlayerManager?.pause()
+                }
+
+                override fun onSkipToNext() {
+                    onNextTrackCallback?.invoke()
+                }
+
+                override fun onStop() {
+                    val app = application as? DemonicApp
+                    app?.youTubePlayerManager?.pause()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                }
+            })
+            isActive = true
+        }
+    }
+
+    private fun updateMediaSessionPlaybackState() {
+        val state = if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
+        val playbackState = PlaybackStateCompat.Builder()
+            .setActions(
+                PlaybackStateCompat.ACTION_PLAY or
+                PlaybackStateCompat.ACTION_PAUSE or
+                PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
+                PlaybackStateCompat.ACTION_STOP
+            )
+            .setState(state, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1.0f)
+            .build()
+        mediaSession?.setPlaybackState(playbackState)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -107,6 +154,7 @@ class DemonicPlaybackService : Service() {
                 currentVideoTitle = intent.getStringExtra(EXTRA_VIDEO_TITLE) ?: currentVideoTitle
                 isPlaying = intent.getBooleanExtra(EXTRA_IS_PLAYING, false)
 
+                updateMediaSessionPlaybackState()
                 startForeground(NOTIFICATION_ID, buildNotification())
                 loadThumbnailIfNeeded(currentVideoId)
             }
@@ -120,25 +168,29 @@ class DemonicPlaybackService : Service() {
                 currentVideoTitle = newTitle
                 isPlaying = newPlaying
 
+                updateMediaSessionPlaybackState()
+
                 if (videoChanged) {
                     cachedThumbnail = null
                     loadThumbnailIfNeeded(currentVideoId)
                 }
 
                 val notificationManager = getSystemService(NotificationManager::class.java)
-                notificationManager.notify(NOTIFICATION_ID, buildNotification())
+                notificationManager?.notify(NOTIFICATION_ID, buildNotification())
             }
             ACTION_PLAY -> {
                 isPlaying = true
+                updateMediaSessionPlaybackState()
                 playerManager?.play()
                 val notificationManager = getSystemService(NotificationManager::class.java)
-                notificationManager.notify(NOTIFICATION_ID, buildNotification())
+                notificationManager?.notify(NOTIFICATION_ID, buildNotification())
             }
             ACTION_PAUSE -> {
                 isPlaying = false
+                updateMediaSessionPlaybackState()
                 playerManager?.pause()
                 val notificationManager = getSystemService(NotificationManager::class.java)
-                notificationManager.notify(NOTIFICATION_ID, buildNotification())
+                notificationManager?.notify(NOTIFICATION_ID, buildNotification())
             }
             ACTION_NEXT -> {
                 onNextTrackCallback?.invoke()
@@ -170,7 +222,7 @@ class DemonicPlaybackService : Service() {
             if (bitmap != null) {
                 cachedThumbnail = bitmap
                 val notificationManager = getSystemService(NotificationManager::class.java)
-                notificationManager.notify(NOTIFICATION_ID, buildNotification())
+                notificationManager?.notify(NOTIFICATION_ID, buildNotification())
             }
         }
     }
@@ -229,15 +281,26 @@ class DemonicPlaybackService : Service() {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_music_note)
             .setContentTitle(currentVideoTitle.ifEmpty { "Demonic Music Stream" })
-            .setContentText(if (currentRoomCode.isNotEmpty()) "Room: $currentRoomCode • Synchronized" else "Synchronized Playback")
+            .setContentText(if (currentRoomCode.isNotEmpty()) "Room $currentRoomCode • Synchronized" else "DEMONIC Music Playback")
             .setContentIntent(openPendingIntent)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
             .setOngoing(isPlaying)
+            .setSilent(true)
             .addAction(playPauseAction)
             .addAction(nextAction)
             .addAction(closeAction)
+
+        mediaSession?.let { session ->
+            builder.setStyle(
+                MediaNotificationCompat.MediaStyle()
+                    .setMediaSession(session.sessionToken)
+                    .setShowActionsInCompactView(0, 1) // Play/Pause and Next
+                    .setShowCancelButton(true)
+                    .setCancelButtonIntent(stopPendingIntent)
+            )
+        }
 
         cachedThumbnail?.let {
             builder.setLargeIcon(it)
@@ -249,19 +312,27 @@ class DemonicPlaybackService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = "Demonic Music Player"
-            val descriptionText = "Persistent playback controls and lock screen status"
-            val importance = NotificationManager.IMPORTANCE_LOW
+            val descriptionText = "Live music playback controls and lock screen status"
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
             val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
                 description = descriptionText
-                setShowBadge(false)
+                setSound(null, null)
+                enableVibration(false)
+                setShowBadge(true)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
+            notificationManager?.createNotificationChannel(channel)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        mediaSession?.apply {
+            isActive = false
+            release()
+        }
+        mediaSession = null
         job.cancel()
     }
 }

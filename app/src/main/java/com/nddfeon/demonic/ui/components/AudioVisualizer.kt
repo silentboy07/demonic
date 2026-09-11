@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nddfeon.demonic.data.model.RoomThemePreset
 import com.nddfeon.demonic.ui.theme.DemonicBorder
 import com.nddfeon.demonic.ui.theme.DemonicCrimson
 import com.nddfeon.demonic.ui.theme.DemonicCrimsonDark
@@ -72,6 +73,8 @@ import com.nddfeon.demonic.ui.theme.DemonicViolet
 @Composable
 fun LiveEqualizerBars(
     isPlaying: Boolean,
+    primaryColor: Color = DemonicCrimson,
+    secondaryColor: Color = DemonicCrimsonLight,
     modifier: Modifier = Modifier
 ) {
     val transition = rememberInfiniteTransition(label = "equalizer")
@@ -130,7 +133,7 @@ fun LiveEqualizerBars(
                     .clip(RoundedCornerShape(3.dp))
                     .background(
                         Brush.verticalGradient(
-                            listOf(DemonicCrimsonLight, DemonicCrimson)
+                            listOf(secondaryColor, primaryColor)
                         )
                     )
             )
@@ -143,6 +146,7 @@ fun NowPlayingTrackBanner(
     title: String,
     isPlaying: Boolean,
     nextTrackTitle: String?,
+    theme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
@@ -152,10 +156,10 @@ fun NowPlayingTrackBanner(
             .clip(RoundedCornerShape(14.dp))
             .background(
                 Brush.horizontalGradient(
-                    listOf(DemonicSurfaceVariant, Color(0xFF161022))
+                    listOf(theme.surfaceVariantColor, theme.surfaceColor)
                 )
             )
-            .border(1.dp, DemonicBorder, RoundedCornerShape(14.dp))
+            .border(1.dp, theme.borderColor, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -165,14 +169,15 @@ fun NowPlayingTrackBanner(
                 .size(34.dp)
                 .clip(CircleShape)
                 .background(
-                    if (isPlaying) DemonicCrimson.copy(alpha = 0.2f) else DemonicSurface
-                ),
+                    if (isPlaying) theme.primaryColor.copy(alpha = 0.22f) else theme.surfaceColor
+                )
+                .border(1.dp, if (isPlaying) theme.primaryColor.copy(alpha = 0.5f) else Color.Transparent, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = if (isPlaying) Icons.Default.MusicNote else Icons.Default.GraphicEq,
                 contentDescription = null,
-                tint = if (isPlaying) DemonicCrimson else DemonicTextMuted,
+                tint = if (isPlaying) theme.primaryColor else DemonicTextMuted,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -196,13 +201,13 @@ fun NowPlayingTrackBanner(
                     Icon(
                         imageVector = Icons.Default.SkipNext,
                         contentDescription = null,
-                        tint = DemonicViolet,
+                        tint = theme.secondaryColor,
                         modifier = Modifier.size(12.dp)
                     )
                     Spacer(modifier = Modifier.width(3.dp))
                     Text(
                         text = "Next: " + nextTrackTitle,
-                        color = DemonicViolet,
+                        color = theme.secondaryColor,
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
@@ -221,7 +226,11 @@ fun NowPlayingTrackBanner(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        LiveEqualizerBars(isPlaying = isPlaying)
+        LiveEqualizerBars(
+            isPlaying = isPlaying,
+            primaryColor = theme.primaryColor,
+            secondaryColor = theme.secondaryColor
+        )
     }
 }
 
