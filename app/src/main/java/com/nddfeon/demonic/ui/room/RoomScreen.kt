@@ -37,7 +37,10 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Videocam
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.MoreVert
+import com.nddfeon.demonic.ui.components.WatchPartyFullscreenOverlay
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
@@ -168,6 +171,24 @@ fun RoomScreen(
     val sleepTimerMinutes by viewModel.sleepTimerMinutes.collectAsState()
     var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
 
+    val activity = context as? android.app.Activity
+    var isFullscreen by remember { mutableStateOf(false) }
+    var isLandscape by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = isFullscreen) {
+        isFullscreen = false
+        isLandscape = false
+        activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
+
+    DisposableEffect(isFullscreen) {
+        onDispose {
+            if (!isFullscreen) {
+                activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+        }
+    }
+
     // Synchronize Android Foreground Service for lock screen controls & Xiaomi freeze immunity
     LaunchedEffect(uiState.room?.videoId, uiState.room?.isPlaying, uiState.room?.videoTitle) {
         val videoId = uiState.room?.videoId ?: ""
@@ -239,14 +260,14 @@ fun RoomScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .then(
-                    if (!isInPip) Modifier
+                    if (!isInPip && !isFullscreen) Modifier
                         .statusBarsPadding()
                         .navigationBarsPadding()
                         .imePadding()
                     else Modifier
                 )
         ) {
-            if (!isInPip) {
+            if (!isInPip && !isFullscreen) {
                 // Header Navigation Bar (Row 1: Clean, Never Overflows)
                 Row(
                     modifier = Modifier
@@ -558,13 +579,34 @@ fun RoomScreen(
                         modifier = Modifier.size(18.dp)
                     )
                 }
+
+                // Fullscreen Watch Party Button
+                IconButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                        playerDisplayMode = PlayerDisplayMode.VIDEO
+                        isFullscreen = true
+                    },
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DemonicCrimsonDark.copy(alpha = 0.35f))
+                        .border(1.dp, DemonicCrimson.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Fullscreen,
+                        contentDescription = "Watch Party Fullscreen",
+                        tint = DemonicCrimson,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 
-        // Visual Centerpiece: 16:9 YouTube Player or Vinyl Disc or Compact Mini-Bar
+        // Visual Centerpiece: 16:9 YouTube Player or Vinyl Disc or Compact Mini-Bar or Watch Party Fullscreen
         val isCompact = (playerDisplayMode == PlayerDisplayMode.COMPACT)
         Box(
-            modifier = if (isInPip) Modifier.fillMaxSize() else Modifier
+            modifier = if (isInPip || isFullscreen) Modifier.fillMaxSize() else Modifier
                 .fillMaxWidth()
                 .height(if (isCompact) 64.dp else 200.dp)
                 .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -576,10 +618,10 @@ fun RoomScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(if (isInPip) RoundedCornerShape(0.dp) else RoundedCornerShape(16.dp))
+                    .clip(if (isInPip || isFullscreen) RoundedCornerShape(0.dp) else RoundedCornerShape(16.dp))
                     .background(Color.Black)
-                    .then(if (!isInPip) Modifier.border(1.dp, DemonicSurfaceVariant, RoundedCornerShape(16.dp)) else Modifier)
-                    .alpha(if ((isInPip || playerDisplayMode == PlayerDisplayMode.VIDEO) && hasVideo) 1f else 0.001f)
+                    .then(if (!isInPip && !isFullscreen) Modifier.border(1.dp, DemonicSurfaceVariant, RoundedCornerShape(16.dp)) else Modifier)
+                    .alpha(if ((isInPip || isFullscreen || playerDisplayMode == PlayerDisplayMode.VIDEO) && hasVideo) 1f else 0.001f)
             ) {
                     AndroidView(
                         factory = { ctx ->
@@ -684,6 +726,39 @@ fun RoomScreen(
                         },
                         modifier = Modifier.fillMaxSize()
                     )
+
+                    // Fullscreen Watch Party Pill Button in normal player mode
+                    if (!isInPip && !isFullscreen && playerDisplayMode == PlayerDisplayMode.VIDEO && hasVideo) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(8.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.Black.copy(alpha = 0.72f))
+                                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                    isFullscreen = true
+                                }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Fullscreen,
+                                    contentDescription = "Watch Party",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Watch Party 🎬",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Vinyl Disc View Overlay
@@ -840,9 +915,63 @@ fun RoomScreen(
                         }
                     }
                 }
+
+                // Fullscreen Watch Party Cinema HUD Overlay
+                if (!isInPip && isFullscreen && hasVideo) {
+                    val currentSecond by viewModel.playerManager.currentSecond.collectAsState()
+                    val duration by viewModel.playerManager.duration.collectAsState()
+
+                    WatchPartyFullscreenOverlay(
+                        roomCode = uiState.roomCode,
+                        videoTitle = uiState.room?.videoTitle ?: "",
+                        currentSecond = currentSecond,
+                        duration = duration,
+                        isPlaying = uiState.room?.isPlaying == true,
+                        canControlPlayback = uiState.canControlPlayback,
+                        driftSeconds = uiState.driftSeconds,
+                        isSyncing = uiState.isSyncing,
+                        memberCount = uiState.members.size,
+                        messages = uiState.messages,
+                        hostId = uiState.room?.hostId,
+                        djId = uiState.room?.djId,
+                        onToggleOrientation = {
+                            isLandscape = !isLandscape
+                            activity?.requestedOrientation = if (isLandscape) {
+                                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                            } else {
+                                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                            }
+                        },
+                        onTogglePlayPause = { viewModel.togglePlayPause() },
+                        onSeekTo = { viewModel.hostSeekTo(it) },
+                        onRewind10 = {
+                            val safeSec = (currentSecond - 10f).coerceAtLeast(0f)
+                            viewModel.hostSeekTo(safeSec)
+                        },
+                        onForward10 = {
+                            val safeDuration = if (duration > 0f) duration else 1f
+                            val safeSec = (currentSecond + 10f).coerceAtMost(safeDuration)
+                            viewModel.hostSeekTo(safeSec)
+                        },
+                        onSkipNext = { viewModel.skipToNextTrack() },
+                        hasQueue = uiState.queue.isNotEmpty(),
+                        onSendReaction = { emoji ->
+                            viewModel.sendReaction(emoji)
+                        },
+                        onSendChatMessage = { msg ->
+                            viewModel.updateChatInput(msg)
+                            viewModel.sendChatMessage()
+                        },
+                        onExitFullscreen = {
+                            isFullscreen = false
+                            isLandscape = false
+                            activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                        }
+                    )
+                }
             }
 
-            if (!isInPip) {
+            if (!isInPip && !isFullscreen) {
                 // Now Playing Track Banner with Live Animated Audio Equalizer
                 if (playerDisplayMode != PlayerDisplayMode.COMPACT && !uiState.room?.videoId.isNullOrEmpty()) {
                     NowPlayingTrackBanner(
