@@ -44,6 +44,7 @@ data class RoomUiState(
     val driftSeconds: Float = 0f,
     val videoInput: String = "",
     val chatInput: String = "",
+    val replyingToMessage: ChatMessage? = null,
     val isRoomClosed: Boolean = false,
     val errorMessage: String? = null
 )
@@ -563,15 +564,37 @@ class RoomViewModel @Inject constructor(
         }
     }
 
+    fun setReplyingTo(message: ChatMessage?) {
+        _uiState.value = _uiState.value.copy(replyingToMessage = message)
+    }
+
+    fun clearReply() {
+        _uiState.value = _uiState.value.copy(replyingToMessage = null)
+    }
+
     fun sendChatMessage() {
         val text = _uiState.value.chatInput.trim()
         val user = getEffectiveUser()
         if (text.isEmpty()) return
+        val replyingTo = _uiState.value.replyingToMessage
+        val senderRole = when {
+            _uiState.value.isHost -> "HOST"
+            _uiState.value.isDj -> "DJ"
+            else -> "LISTENER"
+        }
 
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(chatInput = "")
+            _uiState.value = _uiState.value.copy(chatInput = "", replyingToMessage = null)
             roomRepository.setTyping(roomCode, user.uid, user.displayName, false)
-            roomRepository.sendMessage(roomCode, user, text)
+            roomRepository.sendMessage(
+                roomCode = roomCode,
+                user = user,
+                text = text,
+                replyToMessageId = replyingTo?.id ?: "",
+                replyToSenderName = replyingTo?.senderName ?: "",
+                replyToText = replyingTo?.text ?: "",
+                senderRole = senderRole
+            )
         }
     }
 

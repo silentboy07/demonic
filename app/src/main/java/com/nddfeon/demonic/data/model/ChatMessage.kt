@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.data.model
+package com.nddfeon.demonic.data.model
 
 import com.google.firebase.database.IgnoreExtraProperties
 
@@ -9,5 +9,9 @@ data class ChatMessage(
     val senderName: String = "",
     val text: String = "",
     val sentAt: Long = 0L,
-    val senderPhotoUrl: String = ""
+    val senderPhotoUrl: String = "",
+    val replyToMessageId: String = "",
+    val replyToSenderName: String = "",
+    val replyToText: String = "",
+    val senderRole: String = ""
 )

@@ -61,7 +61,15 @@ interface RoomRepository {
     suspend fun reorderQueue(roomCode: String, newQueue: List<QueueItem>): Result<Unit>
     suspend fun upvoteQueueItem(roomCode: String, itemId: String, uid: String): Result<Unit>
     suspend fun sendReaction(roomCode: String, reaction: LiveReaction): Result<Unit>
-    suspend fun sendMessage(roomCode: String, user: UserAccount, text: String): Result<Unit>
+    suspend fun sendMessage(
+        roomCode: String,
+        user: UserAccount,
+        text: String,
+        replyToMessageId: String = "",
+        replyToSenderName: String = "",
+        replyToText: String = "",
+        senderRole: String = ""
+    ): Result<Unit>
     suspend fun setTyping(roomCode: String, uid: String, userName: String, isTyping: Boolean)
     suspend fun deleteRoom(roomCode: String): Result<Unit>
 }
@@ -445,6 +453,10 @@ class FirebaseRoomRepository @Inject constructor(
                     val senderPhotoUrl = snapshot.child("senderPhotoUrl").getValue(String::class.java) ?: ""
                     val text = snapshot.child("text").getValue(String::class.java) ?: ""
                     val sentAt = snapshot.child("sentAt").getValue(Long::class.java) ?: System.currentTimeMillis()
+                    val replyToMessageId = snapshot.child("replyToMessageId").getValue(String::class.java) ?: ""
+                    val replyToSenderName = snapshot.child("replyToSenderName").getValue(String::class.java) ?: ""
+                    val replyToText = snapshot.child("replyToText").getValue(String::class.java) ?: ""
+                    val senderRole = snapshot.child("senderRole").getValue(String::class.java) ?: ""
 
                     val msg = ChatMessage(
                         id = id,
@@ -452,7 +464,11 @@ class FirebaseRoomRepository @Inject constructor(
                         senderName = senderName,
                         senderPhotoUrl = senderPhotoUrl,
                         text = text,
-                        sentAt = sentAt
+                        sentAt = sentAt,
+                        replyToMessageId = replyToMessageId,
+                        replyToSenderName = replyToSenderName,
+                        replyToText = replyToText,
+                        senderRole = senderRole
                     )
                     trySend(msg)
                 }
@@ -841,7 +857,11 @@ class FirebaseRoomRepository @Inject constructor(
     override suspend fun sendMessage(
         roomCode: String,
         user: UserAccount,
-        text: String
+        text: String,
+        replyToMessageId: String,
+        replyToSenderName: String,
+        replyToText: String,
+        senderRole: String
     ): Result<Unit> {
         val upperCode = roomCode.trim().uppercase()
         val msgId = "msg_" + System.currentTimeMillis() + "_" + (1000..9999).random()
@@ -851,7 +871,11 @@ class FirebaseRoomRepository @Inject constructor(
             senderName = user.displayName,
             senderPhotoUrl = user.photoUrl ?: "",
             text = text.trim(),
-            sentAt = System.currentTimeMillis()
+            sentAt = System.currentTimeMillis(),
+            replyToMessageId = replyToMessageId,
+            replyToSenderName = replyToSenderName,
+            replyToText = replyToText,
+            senderRole = senderRole
         )
         getOrCreateLocalMessages(upperCode).emit(msg)
 
@@ -865,7 +889,11 @@ class FirebaseRoomRepository @Inject constructor(
                     "senderName" to user.displayName,
                     "senderPhotoUrl" to (user.photoUrl ?: ""),
                     "text" to text.trim(),
-                    "sentAt" to ServerValue.TIMESTAMP
+                    "sentAt" to ServerValue.TIMESTAMP,
+                    "replyToMessageId" to replyToMessageId,
+                    "replyToSenderName" to replyToSenderName,
+                    "replyToText" to replyToText,
+                    "senderRole" to senderRole
                 )
                 msgRef.setValue(msgData).await()
             } catch (_: Exception) {}

@@ -85,10 +85,14 @@ import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.UnfoldMore
 import coil.compose.AsyncImage
 import com.nddfeon.demonic.player.DemonicPlaybackService
+import androidx.compose.ui.text.style.TextAlign
+import com.nddfeon.demonic.data.model.ChatMessage
 import com.nddfeon.demonic.player.YouTubeSearchManager
 import com.nddfeon.demonic.ui.components.ChatInputBar
+import com.nddfeon.demonic.ui.components.ChatMessageActionDialog
 import com.nddfeon.demonic.ui.components.ChatMessageItem
 import com.nddfeon.demonic.ui.components.DemonicButton
+import com.nddfeon.demonic.ui.components.ScrollToBottomFloatingButton
 import com.nddfeon.demonic.ui.components.FloatingReactionsOverlay
 import com.nddfeon.demonic.ui.components.MemberAvatarRow
 import com.nddfeon.demonic.ui.components.MembersBottomSheet
@@ -158,6 +162,7 @@ fun RoomScreen(
     var showQrDialog by remember { mutableStateOf(false) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     val sleepTimerMinutes by viewModel.sleepTimerMinutes.collectAsState()
+    var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
 
     // Synchronize Android Foreground Service for lock screen controls & Xiaomi freeze immunity
     LaunchedEffect(uiState.room?.videoId, uiState.room?.isPlaying, uiState.room?.videoTitle) {
@@ -838,11 +843,32 @@ fun RoomScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "No messages yet. Say hi to the room! 🔥",
-                                color = DemonicTextMuted.copy(alpha = 0.6f),
-                                fontSize = 12.sp
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .padding(horizontal = 24.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color(0xFF130F1C))
+                                    .border(1.dp, DemonicBorder, RoundedCornerShape(16.dp))
+                                    .padding(horizontal = 20.dp, vertical = 16.dp)
+                            ) {
+                                Text(text = "🎵", fontSize = 28.sp)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Welcome to Room ${uiState.roomCode}",
+                                    color = DemonicTextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = "Drop a beat, react with emojis, or long-press messages to reply!",
+                                    color = DemonicTextMuted,
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 15.sp
+                                )
+                            }
                         }
                     } else {
                         LazyColumn(
@@ -854,10 +880,26 @@ fun RoomScreen(
                                 val isOwnMessage = (message.senderId == currentUser?.uid)
                                 ChatMessageItem(
                                     message = message,
-                                    isOwnMessage = isOwnMessage
+                                    isOwnMessage = isOwnMessage,
+                                    isHost = (message.senderId == uiState.room?.hostId),
+                                    isDj = (message.senderId == uiState.room?.djId),
+                                    onLongClick = { actionMessage = it }
                                 )
                             }
                         }
+
+                        // Floating Scroll-To-Bottom Pill Button
+                        ScrollToBottomFloatingButton(
+                            visible = !isScrolledToBottom,
+                            onClick = {
+                                scope.launch {
+                                    listState.animateScrollToItem(uiState.messages.size - 1)
+                                }
+                            },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(bottom = 8.dp, end = 6.dp)
+                        )
                     }
                 }
 
@@ -877,7 +919,7 @@ fun RoomScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     ReactionButtonBar(
@@ -891,7 +933,9 @@ fun RoomScreen(
                     value = uiState.chatInput,
                     onValueChange = { viewModel.updateChatInput(it) },
                     onSend = { viewModel.sendChatMessage() },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    replyingTo = uiState.replyingToMessage,
+                    onCancelReply = { viewModel.clearReply() },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
         }
@@ -990,6 +1034,20 @@ fun RoomScreen(
                     currentMinutes = sleepTimerMinutes,
                     onSelectMinutes = { viewModel.setSleepTimer(it) },
                     onDismiss = { showSleepTimerDialog = false }
+                )
+            }
+
+            // Message Action Dialog (Quick Reaction, Reply, Copy Text)
+            actionMessage?.let { msg ->
+                ChatMessageActionDialog(
+                    message = msg,
+                    onDismiss = { actionMessage = null },
+                    onReply = {
+                        viewModel.setReplyingTo(it)
+                    },
+                    onSendReaction = { emoji ->
+                        viewModel.sendReaction(emoji)
+                    }
                 )
             }
         }
