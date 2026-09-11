@@ -147,14 +147,12 @@ class RoomViewModel @Inject constructor(
         viewModelScope.launch {
             roomRepository.observeRoom(roomCode).collect { room ->
                 if (room == null) {
-                    if (lastKnownRoom != null) {
-                        _uiState.value = _uiState.value.copy(
-                            room = null,
-                            isRoomClosed = true,
-                            errorMessage = "Room has been ended."
-                        )
-                        playerManager.pause()
-                    }
+                    _uiState.value = _uiState.value.copy(
+                        room = null,
+                        isRoomClosed = true,
+                        errorMessage = "Room has been ended."
+                    )
+                    playerManager.pause()
                     return@collect
                 }
                 val currentUid = getEffectiveUser().uid
@@ -718,7 +716,33 @@ class RoomViewModel @Inject constructor(
 
     fun deleteRoom() {
         viewModelScope.launch {
-            roomRepository.deleteRoom(roomCode)
+            try {
+                playerManager.pause()
+                _uiState.value = _uiState.value.copy(
+                    room = null,
+                    isRoomClosed = true,
+                    errorMessage = "Room ended."
+                )
+                roomRepository.deleteRoom(roomCode)
+            } catch (e: Exception) {
+                android.util.Log.e("DemonicSync", "Error deleting room: ${e.message}")
+            }
+        }
+    }
+
+    fun forceSyncWithHost() {
+        viewModelScope.launch {
+            val room = _uiState.value.room ?: return@launch
+            val serverNow = roomRepository.getServerNowMs()
+            val deltaSec = if (room.isPlaying) ((serverNow - room.updatedAt).coerceAtLeast(0L)) / 1000.0 else 0.0
+            val targetPosition = (room.position + deltaSec).toFloat()
+            _uiState.value = _uiState.value.copy(isSyncing = true)
+            playerManager.seekTo(targetPosition)
+            if (room.isPlaying && !playerManager.isPlaying()) {
+                playerManager.play()
+            }
+            delay(300L)
+            _uiState.value = _uiState.value.copy(isSyncing = false)
         }
     }
 

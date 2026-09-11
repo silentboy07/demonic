@@ -760,6 +760,7 @@ class FirebaseRoomRepository @Inject constructor(
 
     override suspend fun deleteRoom(roomCode: String): Result<Unit> {
         val upperCode = roomCode.trim().uppercase()
+        localRooms[upperCode]?.value = null
         localRooms.remove(upperCode)
         localMembers.remove(upperCode)
         localMessages.remove(upperCode)

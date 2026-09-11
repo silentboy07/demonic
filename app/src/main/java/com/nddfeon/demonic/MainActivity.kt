@@ -177,7 +177,16 @@ class MainActivity : ComponentActivity() {
                                 searchManager = app.youTubeSearchManager,
                                 isInPip = isInPipMode.value,
                                 onNavigateBack = {
-                                    navController.popBackStack()
+                                    val currentRoute = navController.currentDestination?.route
+                                    if (currentRoute?.startsWith("room") == true) {
+                                        val popped = navController.popBackStack("home", inclusive = false)
+                                        if (!popped) {
+                                            navController.navigate("home") {
+                                                popUpTo(0) { inclusive = true }
+                                                launchSingleTop = true
+                                            }
+                                        }
+                                    }
                                 }
                             )
                         }
