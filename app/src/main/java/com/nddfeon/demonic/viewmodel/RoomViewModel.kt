@@ -105,6 +105,7 @@ class RoomViewModel @Inject constructor(
         observeRoomState()
         observeMembers()
         observeChatMessages()
+        observeDeletedMessages()
         observeTyping()
         observeQueue()
         observeReactions()
@@ -303,6 +304,16 @@ class RoomViewModel @Inject constructor(
                 if (!isDuplicate) {
                     _uiState.value = _uiState.value.copy(messages = current + message)
                 }
+            }
+        }
+    }
+
+    private fun observeDeletedMessages() {
+        viewModelScope.launch {
+            roomRepository.observeDeletedMessageIds(roomCode).collect { deletedId ->
+                _uiState.value = _uiState.value.copy(
+                    messages = _uiState.value.messages.filter { it.id != deletedId }
+                )
             }
         }
     }
@@ -541,6 +552,12 @@ class RoomViewModel @Inject constructor(
 
     fun sendReaction(emoji: String) {
         val user = getEffectiveUser()
+        val currentMember = _uiState.value.members.find { it.uid == user.uid }
+        if (currentMember != null && currentMember.timedOutUntil > System.currentTimeMillis()) {
+            _uiState.value = _uiState.value.copy(errorMessage = "You are timed out by the host!")
+            return
+        }
+
         val reaction = LiveReaction(
             id = "rx_" + System.currentTimeMillis() + "_" + (100..999).random(),
             emoji = emoji,
@@ -557,8 +574,13 @@ class RoomViewModel @Inject constructor(
     }
 
     fun updateChatInput(text: String) {
-        _uiState.value = _uiState.value.copy(chatInput = text)
         val user = getEffectiveUser()
+        val currentMember = _uiState.value.members.find { it.uid == user.uid }
+        if (currentMember != null && currentMember.timedOutUntil > System.currentTimeMillis()) {
+            return
+        }
+
+        _uiState.value = _uiState.value.copy(chatInput = text)
         viewModelScope.launch {
             roomRepository.setTyping(roomCode, user.uid, user.displayName, text.isNotBlank())
         }
@@ -576,6 +598,13 @@ class RoomViewModel @Inject constructor(
         val text = _uiState.value.chatInput.trim()
         val user = getEffectiveUser()
         if (text.isEmpty()) return
+
+        val currentMember = _uiState.value.members.find { it.uid == user.uid }
+        if (currentMember != null && currentMember.timedOutUntil > System.currentTimeMillis()) {
+            _uiState.value = _uiState.value.copy(errorMessage = "You are timed out by the host!")
+            return
+        }
+
         val replyingTo = _uiState.value.replyingToMessage
         val senderRole = when {
             _uiState.value.isHost -> "HOST"
@@ -595,6 +624,29 @@ class RoomViewModel @Inject constructor(
                 replyToText = replyingTo?.text ?: "",
                 senderRole = senderRole
             )
+        }
+    }
+
+    fun deleteMessage(messageId: String) {
+        _uiState.value = _uiState.value.copy(
+            messages = _uiState.value.messages.filter { it.id != messageId }
+        )
+        viewModelScope.launch {
+            roomRepository.deleteMessage(roomCode, messageId)
+        }
+    }
+
+    fun timeoutMember(uid: String, targetName: String, durationMinutes: Int) {
+        val hostUser = getEffectiveUser()
+        viewModelScope.launch {
+            roomRepository.timeoutMember(roomCode, uid, durationMinutes, hostUser.displayName, targetName)
+        }
+    }
+
+    fun removeTimeout(uid: String, targetName: String) {
+        val hostUser = getEffectiveUser()
+        viewModelScope.launch {
+            roomRepository.removeTimeout(roomCode, uid, hostUser.displayName, targetName)
         }
     }
 

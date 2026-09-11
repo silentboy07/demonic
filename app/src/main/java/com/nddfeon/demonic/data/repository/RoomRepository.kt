@@ -71,6 +71,10 @@ interface RoomRepository {
         senderRole: String = ""
     ): Result<Unit>
     suspend fun setTyping(roomCode: String, uid: String, userName: String, isTyping: Boolean)
+    fun observeDeletedMessageIds(roomCode: String): Flow<String>
+    suspend fun deleteMessage(roomCode: String, messageId: String): Result<Unit>
+    suspend fun timeoutMember(roomCode: String, uid: String, durationMinutes: Int, hostName: String, targetName: String): Result<Unit>
+    suspend fun removeTimeout(roomCode: String, uid: String, hostName: String, targetName: String): Result<Unit>
     suspend fun deleteRoom(roomCode: String): Result<Unit>
 }
 @Singleton
@@ -406,13 +410,15 @@ class FirebaseRoomRepository @Inject constructor(
                             val name = child.child("name").getValue(String::class.java) ?: "Guest"
                             val photoUrl = child.child("photoUrl").getValue(String::class.java) ?: ""
                             val joinedAt = child.child("joinedAt").getValue(Long::class.java) ?: 0L
+                            val timedOutUntil = child.child("timedOutUntil").getValue(Long::class.java) ?: 0L
                             list.add(
                                 Member(
                                     uid = uid,
                                     name = name,
                                     photoUrl = photoUrl,
                                     joinedAt = joinedAt,
-                                    isHost = (uid == hostId)
+                                    isHost = (uid == hostId),
+                                    timedOutUntil = timedOutUntil
                                 )
                             )
                         }
@@ -486,6 +492,29 @@ class FirebaseRoomRepository @Inject constructor(
         }
 
         return merge(localFlow, firebaseFlow)
+    }
+
+    override fun observeDeletedMessageIds(roomCode: String): Flow<String> = callbackFlow {
+        val upperCode = roomCode.trim().uppercase()
+        val messagesRef = database.getReference("rooms").child(upperCode).child("messages")
+        val listener = object : ChildEventListener {
+            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {}
+            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
+            override fun onChildRemoved(snapshot: DataSnapshot) {
+                val id = snapshot.child("id").getValue(String::class.java) ?: snapshot.key ?: ""
+                if (id.isNotEmpty()) {
+                    trySend(id)
+                }
+            }
+            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        try {
+            messagesRef.addChildEventListener(listener)
+        } catch (_: Exception) {}
+        awaitClose {
+            try { messagesRef.removeEventListener(listener) } catch (_: Exception) {}
+        }
     }
 
     override fun observeTypingUsers(roomCode: String, currentUid: String): Flow<List<String>> {
@@ -921,5 +950,69 @@ class FirebaseRoomRepository @Inject constructor(
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    override suspend fun deleteMessage(roomCode: String, messageId: String): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        scope.launch {
+            try {
+                database.getReference("rooms").child(upperCode).child("messages").child(messageId).removeValue().await()
+            } catch (_: Exception) {}
+        }
+        return Result.success(Unit)
+    }
+
+    override suspend fun timeoutMember(
+        roomCode: String,
+        uid: String,
+        durationMinutes: Int,
+        hostName: String,
+        targetName: String
+    ): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        val until = System.currentTimeMillis() + (durationMinutes * 60 * 1000L)
+        scope.launch {
+            try {
+                database.getReference("rooms").child(upperCode).child("members").child(uid)
+                    .child("timedOutUntil").setValue(until).await()
+
+                val sysMsgId = "sys_to_${System.currentTimeMillis()}_${(100..999).random()}"
+                val sysMsg = hashMapOf<String, Any>(
+                    "id" to sysMsgId,
+                    "senderId" to "system",
+                    "senderName" to "DEMONIC",
+                    "text" to "$hostName timed out $targetName for $durationMinutes min ⏱️",
+                    "sentAt" to ServerValue.TIMESTAMP
+                )
+                database.getReference("rooms").child(upperCode).child("messages").child(sysMsgId).setValue(sysMsg)
+            } catch (_: Exception) {}
+        }
+        return Result.success(Unit)
+    }
+
+    override suspend fun removeTimeout(
+        roomCode: String,
+        uid: String,
+        hostName: String,
+        targetName: String
+    ): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        scope.launch {
+            try {
+                database.getReference("rooms").child(upperCode).child("members").child(uid)
+                    .child("timedOutUntil").setValue(0L).await()
+
+                val sysMsgId = "sys_unmute_${System.currentTimeMillis()}_${(100..999).random()}"
+                val sysMsg = hashMapOf<String, Any>(
+                    "id" to sysMsgId,
+                    "senderId" to "system",
+                    "senderName" to "DEMONIC",
+                    "text" to "$hostName removed timeout for $targetName 🔊",
+                    "sentAt" to ServerValue.TIMESTAMP
+                )
+                database.getReference("rooms").child(upperCode).child("messages").child(sysMsgId).setValue(sysMsg)
+            } catch (_: Exception) {}
+        }
+        return Result.success(Unit)
     }
 }

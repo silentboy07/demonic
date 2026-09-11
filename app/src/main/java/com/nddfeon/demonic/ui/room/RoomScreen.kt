@@ -65,6 +65,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -915,6 +916,13 @@ fun RoomScreen(
                     )
                 }
 
+                val currentMember = remember(uiState.members, currentUser?.uid) {
+                    uiState.members.find { it.uid == currentUser?.uid }
+                }
+                val isCurrentMemberTimedOut = remember(currentMember?.timedOutUntil) {
+                    (currentMember?.timedOutUntil ?: 0L) > System.currentTimeMillis()
+                }
+
                 // Reaction bar + Chat Input Bar
                 Row(
                     modifier = Modifier
@@ -924,7 +932,12 @@ fun RoomScreen(
                 ) {
                     ReactionButtonBar(
                         onSendReaction = { emoji ->
-                            viewModel.sendReaction(emoji)
+                            if (isCurrentMemberTimedOut) {
+                                view.performHapticFeedback(HapticFeedbackConstants.REJECT)
+                                Toast.makeText(context, "You are timed out by the host ⏱️", Toast.LENGTH_SHORT).show()
+                            } else {
+                                viewModel.sendReaction(emoji)
+                            }
                         }
                     )
                 }
@@ -935,6 +948,8 @@ fun RoomScreen(
                     onSend = { viewModel.sendChatMessage() },
                     replyingTo = uiState.replyingToMessage,
                     onCancelReply = { viewModel.clearReply() },
+                    isTimedOut = isCurrentMemberTimedOut,
+                    timedOutUntil = currentMember?.timedOutUntil ?: 0L,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
@@ -998,6 +1013,12 @@ fun RoomScreen(
                     onDismiss = { showMembersSheet = false },
                     onPassAux = { targetUid ->
                         viewModel.passTheAux(targetUid)
+                    },
+                    onTimeoutMember = { uid, name, minutes ->
+                        viewModel.timeoutMember(uid, name, minutes)
+                    },
+                    onRemoveTimeout = { uid, name ->
+                        viewModel.removeTimeout(uid, name)
                     }
                 )
             }
@@ -1037,16 +1058,28 @@ fun RoomScreen(
                 )
             }
 
-            // Message Action Dialog (Quick Reaction, Reply, Copy Text)
+            // Message Action Dialog (Quick Reaction, Reply, Copy Text, Delete, Timeout)
             actionMessage?.let { msg ->
+                val isOwnMsg = (msg.senderId == currentUser?.uid)
+                val canDelete = isOwnMsg || uiState.isHost
+                val canTimeout = uiState.isHost && !isOwnMsg && msg.senderId != "system"
+
                 ChatMessageActionDialog(
                     message = msg,
+                    canDelete = canDelete,
+                    canTimeout = canTimeout,
                     onDismiss = { actionMessage = null },
                     onReply = {
                         viewModel.setReplyingTo(it)
                     },
                     onSendReaction = { emoji ->
                         viewModel.sendReaction(emoji)
+                    },
+                    onDeleteMessage = {
+                        viewModel.deleteMessage(msg.id)
+                    },
+                    onTimeoutUser = { mins ->
+                        viewModel.timeoutMember(msg.senderId, msg.senderName, mins)
                     }
                 )
             }

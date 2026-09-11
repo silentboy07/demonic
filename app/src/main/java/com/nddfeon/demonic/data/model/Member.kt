@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.data.model
+package com.nddfeon.demonic.data.model
 
 import com.google.firebase.database.IgnoreExtraProperties
 
@@ -8,5 +8,6 @@ data class Member(
     val name: String = "",
     val photoUrl: String = "",
     val joinedAt: Long = 0L,
-    val isHost: Boolean = false
+    val isHost: Boolean = false,
+    val timedOutUntil: Long = 0L
 )

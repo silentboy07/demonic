@@ -48,13 +48,17 @@ import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -80,6 +84,7 @@ import com.nddfeon.demonic.data.model.ChatMessage
 import com.nddfeon.demonic.ui.theme.DemonicBorder
 import com.nddfeon.demonic.ui.theme.DemonicCrimson
 import com.nddfeon.demonic.ui.theme.DemonicCrimsonDark
+import com.nddfeon.demonic.ui.theme.DemonicErrorRed
 import com.nddfeon.demonic.ui.theme.DemonicSurface
 import com.nddfeon.demonic.ui.theme.DemonicSurfaceVariant
 import com.nddfeon.demonic.ui.theme.DemonicTextMuted
@@ -371,12 +376,17 @@ fun ChatMessageItem(
 @Composable
 fun ChatMessageActionDialog(
     message: ChatMessage,
+    canDelete: Boolean = false,
+    canTimeout: Boolean = false,
     onDismiss: () -> Unit,
     onReply: (ChatMessage) -> Unit,
-    onSendReaction: (String) -> Unit
+    onSendReaction: (String) -> Unit,
+    onDeleteMessage: () -> Unit = {},
+    onTimeoutUser: (durationMinutes: Int) -> Unit = {}
 ) {
     val context = LocalContext.current
     val view = LocalView.current
+    var showTimeoutOptions by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Box(
@@ -482,7 +492,7 @@ fun ChatMessageActionDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Actions: Reply & Copy
                 Row(
@@ -551,6 +561,109 @@ fun ChatMessageActionDialog(
                                 color = DemonicTextPrimary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+
+                // Host Timeout User Button & Option Selector
+                if (canTimeout) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    if (!showTimeoutOptions) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF2B1D0E))
+                                .border(1.dp, Color(0xFFFFB300).copy(alpha = 0.7f), RoundedCornerShape(12.dp))
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    showTimeoutOptions = true
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Timer,
+                                    contentDescription = "Timeout User",
+                                    tint = Color(0xFFFFC107),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Timeout User (${message.senderName})",
+                                    color = Color(0xFFFFC107),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    } else {
+                        // Duration picker chips: 1m, 5m, 15m
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(1 to "1 Min", 5 to "5 Min", 15 to "15 Min").forEach { (mins, label) ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(38.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF382208))
+                                        .border(1.dp, Color(0xFFFFB300), RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                            onTimeoutUser(mins)
+                                            Toast.makeText(context, "${message.senderName} timed out for $label ⏱️", Toast.LENGTH_SHORT).show()
+                                            onDismiss()
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = Color(0xFFFFC107),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Delete Message Button (User own message or Host)
+                if (canDelete) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF281116))
+                            .border(1.dp, DemonicErrorRed.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                onDeleteMessage()
+                                Toast.makeText(context, "Message deleted 🗑️", Toast.LENGTH_SHORT).show()
+                                onDismiss()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                tint = DemonicErrorRed,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Delete Message",
+                                color = DemonicErrorRed,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -769,6 +882,8 @@ fun ChatInputBar(
     onSend: () -> Unit,
     replyingTo: ChatMessage? = null,
     onCancelReply: () -> Unit = {},
+    isTimedOut: Boolean = false,
+    timedOutUntil: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
@@ -776,7 +891,7 @@ fun ChatInputBar(
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val sendScale by animateFloatAsState(
-        targetValue = if (isPressed && value.isNotBlank()) 0.9f else 1f,
+        targetValue = if (isPressed && value.isNotBlank() && !isTimedOut) 0.9f else 1f,
         animationSpec = spring(stiffness = 600f),
         label = "SendScale"
     )
@@ -789,102 +904,131 @@ fun ChatInputBar(
             .background(Color(0xFF0F0D15))
             .border(
                 width = 1.dp,
-                color = Color(0xFF261F33),
+                color = if (isTimedOut) Color(0xFF5A1A22) else Color(0xFF261F33),
                 shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
             )
     ) {
-        // Quoted Reply Preview Banner
-        AnimatedVisibility(
-            visible = replyingTo != null,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            if (replyingTo != null) {
-                ReplyPreviewBanner(
-                    replyingTo = replyingTo,
-                    onCancelReply = onCancelReply
-                )
-            }
-        }
+        if (isTimedOut) {
+            val remainingSec = ((timedOutUntil - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            val remMins = remainingSec / 60
+            val remSecs = remainingSec % 60
+            val timeDisplay = if (remMins > 0) "${remMins}m ${remSecs}s" else "${remSecs}s"
 
-        // Input & Action Row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Text Input Box
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .clip(shape)
-                    .background(DemonicSurfaceVariant)
-                    .border(1.dp, if (replyingTo != null) DemonicViolet else DemonicBorder, shape)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                contentAlignment = Alignment.CenterStart
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF2B1015))
+                    .border(1.dp, DemonicErrorRed.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center
             ) {
-                if (value.isEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "⏱️", fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (replyingTo != null) "Reply to @${replyingTo.senderName}..." else "Say something in room...",
-                        color = DemonicTextMuted,
-                        fontSize = 14.sp
+                        text = "You are timed out by the host ($timeDisplay remaining)",
+                        color = Color(0xFFFF8A80),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        } else {
+            // Quoted Reply Preview Banner
+            AnimatedVisibility(
+                visible = replyingTo != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                if (replyingTo != null) {
+                    ReplyPreviewBanner(
+                        replyingTo = replyingTo,
+                        onCancelReply = onCancelReply
+                    )
+                }
+            }
+
+            // Input & Action Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Text Input Box
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(shape)
+                        .background(DemonicSurfaceVariant)
+                        .border(1.dp, if (replyingTo != null) DemonicViolet else DemonicBorder, shape)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = if (replyingTo != null) "Reply to @${replyingTo.senderName}..." else "Say something in room...",
+                            color = DemonicTextMuted,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = {
+                            if (value.isNotBlank()) {
+                                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                onSend()
+                            }
+                        }),
+                        textStyle = TextStyle(
+                            color = DemonicTextPrimary,
+                            fontSize = 14.sp
+                        ),
+                        cursorBrush = SolidColor(DemonicCrimson)
                     )
                 }
 
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = {
-                        if (value.isNotBlank()) {
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Tactile Send Button
+                val canSend = value.isNotBlank()
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .scale(sendScale)
+                        .shadow(if (canSend) 8.dp else 0.dp, CircleShape, spotColor = DemonicCrimson)
+                        .clip(CircleShape)
+                        .background(
+                            if (canSend) {
+                                Brush.linearGradient(listOf(DemonicCrimson, DemonicCrimsonDark))
+                            } else {
+                                Brush.linearGradient(listOf(Color(0xFF231C2E), Color(0xFF191322)))
+                            }
+                        )
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            enabled = canSend
+                        ) {
                             view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                             onSend()
-                        }
-                    }),
-                    textStyle = TextStyle(
-                        color = DemonicTextPrimary,
-                        fontSize = 14.sp
-                    ),
-                    cursorBrush = SolidColor(DemonicCrimson)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Tactile Send Button
-            val canSend = value.isNotBlank()
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .scale(sendScale)
-                    .shadow(if (canSend) 8.dp else 0.dp, CircleShape, spotColor = DemonicCrimson)
-                    .clip(CircleShape)
-                    .background(
-                        if (canSend) {
-                            Brush.linearGradient(listOf(DemonicCrimson, DemonicCrimsonDark))
-                        } else {
-                            Brush.linearGradient(listOf(Color(0xFF231C2E), Color(0xFF191322)))
-                        }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send",
+                        tint = if (canSend) DemonicTextPrimary else DemonicTextMuted,
+                        modifier = Modifier.size(18.dp)
                     )
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                        enabled = canSend
-                    ) {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        onSend()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
-                    tint = if (canSend) DemonicTextPrimary else DemonicTextMuted,
-                    modifier = Modifier.size(18.dp)
-                )
+                }
             }
         }
     }
