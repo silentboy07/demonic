@@ -469,6 +469,17 @@ fun RoomScreen(
                                         showSleepTimerDialog = true
                                     }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text("Themes & Special FX 🎨", color = currentTheme.primaryColor, fontSize = 13.sp, fontWeight = FontWeight.Bold) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Palette, contentDescription = null, tint = currentTheme.primaryColor, modifier = Modifier.size(18.dp))
+                                    },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                        showFxStudioSheet = true
+                                    }
+                                )
                                 if (uiState.isHost) {
                                     DropdownMenuItem(
                                         text = { Text("End & Delete Room", color = DemonicErrorRed, fontSize = 13.sp, fontWeight = FontWeight.Bold) },
@@ -609,6 +620,26 @@ fun RoomScreen(
                         imageVector = Icons.Default.Fullscreen,
                         contentDescription = "Watch Party Fullscreen",
                         tint = DemonicCrimson,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // Room Themes & Special FX Studio Button
+                IconButton(
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                        showFxStudioSheet = true
+                    },
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(currentTheme.primaryColor.copy(alpha = 0.25f))
+                        .border(1.dp, currentTheme.primaryColor, RoundedCornerShape(10.dp))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Palette,
+                        contentDescription = "Themes & FX Studio",
+                        tint = currentTheme.primaryColor,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -1151,11 +1182,12 @@ fun RoomScreen(
                     (currentMember?.timedOutUntil ?: 0L) > System.currentTimeMillis()
                 }
 
-                // Reaction bar + Chat Input Bar
+                // Reaction bar + Owner FX & Themes Button
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     ReactionButtonBar(
@@ -1168,6 +1200,36 @@ fun RoomScreen(
                             }
                         }
                     )
+
+                    // Owner FX & Themes Quick Trigger Button in Chat Section
+                    Box(
+                        modifier = Modifier
+                            .height(34.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(currentTheme.primaryColor.copy(alpha = 0.25f), currentTheme.secondaryColor.copy(alpha = 0.2f))
+                                )
+                            )
+                            .border(1.dp, currentTheme.primaryColor, RoundedCornerShape(10.dp))
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                showFxStudioSheet = true
+                            }
+                            .padding(horizontal = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "💖", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "FX & Themes",
+                                color = currentTheme.primaryColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
                 }
 
                 ChatInputBar(
