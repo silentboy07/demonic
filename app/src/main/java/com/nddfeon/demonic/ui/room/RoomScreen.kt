@@ -37,8 +37,11 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -298,7 +301,7 @@ fun RoomScreen(
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         SyncStatusBadge(
                             driftSeconds = uiState.driftSeconds,
@@ -320,6 +323,13 @@ fun RoomScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF00F5D4))
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
                                 Icon(
                                     imageVector = Icons.Default.People,
                                     contentDescription = "Members",
@@ -336,90 +346,110 @@ fun RoomScreen(
                             }
                         }
 
-                        IconButton(
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_SUBJECT, "Join my DEMONIC synchronized music room!")
-                                    putExtra(
-                                        Intent.EXTRA_TEXT,
-                                        "Join my synchronized room on DEMONIC with code: ${uiState.roomCode}\n\nDeep Link: demonic://room/${uiState.roomCode}"
-                                    )
-                                }
-                                context.startActivity(Intent.createChooser(shareIntent, "Share Room Code"))
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = "Share",
-                                tint = DemonicTextPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        // Instant QR Code Invite Button
-                        IconButton(
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                showQrDialog = true
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.QrCode,
-                                contentDescription = "QR Code",
-                                tint = DemonicTextPrimary,
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
-
-                        // Sleep Timer Button with active minute badge
-                        IconButton(
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                showSleepTimerDialog = true
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            BadgedBox(
-                                badge = {
-                                    if (sleepTimerMinutes != null) {
-                                        Badge(
-                                            containerColor = DemonicViolet,
-                                            contentColor = Color.White
-                                        ) {
-                                            Text("${sleepTimerMinutes}m", fontSize = 9.sp)
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Bedtime,
-                                    contentDescription = "Sleep Timer",
-                                    tint = if (sleepTimerMinutes != null) DemonicViolet else DemonicTextPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-
-                        // Host End & Delete Room Button
-                        if (uiState.isHost) {
+                        // More Actions Dropdown Menu (Share, QR Code, Sleep Timer, End Room)
+                        var showHeaderMenu by remember { mutableStateOf(false) }
+                        Box {
                             IconButton(
                                 onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                    viewModel.deleteRoom()
-                                    onNavigateBack()
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    showHeaderMenu = true
                                 },
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(34.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "End & Delete Room",
-                                    tint = DemonicErrorRed,
-                                    modifier = Modifier.size(20.dp)
+                                BadgedBox(
+                                    badge = {
+                                        if (sleepTimerMinutes != null) {
+                                            Badge(
+                                                containerColor = DemonicViolet,
+                                                contentColor = Color.White
+                                            ) {
+                                                Text("${sleepTimerMinutes}m", fontSize = 8.sp)
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "More Actions",
+                                        tint = DemonicTextPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = showHeaderMenu,
+                                onDismissRequest = { showHeaderMenu = false },
+                                modifier = Modifier
+                                    .background(DemonicSurface)
+                                    .border(1.dp, DemonicBorder, RoundedCornerShape(10.dp))
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Share Room Code", color = DemonicTextPrimary, fontSize = 13.sp) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Share, contentDescription = null, tint = DemonicTextPrimary, modifier = Modifier.size(18.dp))
+                                    },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_SUBJECT, "Join my DEMONIC synchronized music room!")
+                                            putExtra(
+                                                Intent.EXTRA_TEXT,
+                                                "Join my synchronized room on DEMONIC with code: ${uiState.roomCode}\n\nDeep Link: demonic://room/${uiState.roomCode}"
+                                            )
+                                        }
+                                        context.startActivity(Intent.createChooser(shareIntent, "Share Room Code"))
+                                    }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text("Room QR Code", color = DemonicTextPrimary, fontSize = 13.sp) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.QrCode, contentDescription = null, tint = DemonicTextPrimary, modifier = Modifier.size(18.dp))
+                                    },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                        showQrDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (sleepTimerMinutes != null) "Sleep Timer (${sleepTimerMinutes}m)" else "Sleep Timer",
+                                            color = if (sleepTimerMinutes != null) DemonicViolet else DemonicTextPrimary,
+                                            fontSize = 13.sp
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Bedtime,
+                                            contentDescription = null,
+                                            tint = if (sleepTimerMinutes != null) DemonicViolet else DemonicTextPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                        showSleepTimerDialog = true
+                                    }
+                                )
+                                if (uiState.isHost) {
+                                    DropdownMenuItem(
+                                        text = { Text("End & Delete Room", color = DemonicErrorRed, fontSize = 13.sp, fontWeight = FontWeight.Bold) },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Delete, contentDescription = null, tint = DemonicErrorRed, modifier = Modifier.size(18.dp))
+                                        },
+                                        onClick = {
+                                            showHeaderMenu = false
+                                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                            viewModel.deleteRoom()
+                                            onNavigateBack()
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -829,6 +859,22 @@ fun RoomScreen(
                     RoomPlaybackControlsSection(
                         viewModel = viewModel,
                         isPlaying = uiState.room?.isPlaying ?: false
+                    )
+                }
+
+                // Live Member Avatars Row (Hidden in Compact mode for maximum chat space)
+                if (playerDisplayMode != PlayerDisplayMode.COMPACT) {
+                    MemberAvatarRow(
+                        members = uiState.members,
+                        djId = uiState.room?.djId,
+                        isHostUser = uiState.isHost,
+                        onPassAux = { targetUid ->
+                            viewModel.passTheAux(targetUid)
+                        },
+                        onOpenMembersSheet = {
+                            showMembersSheet = true
+                        },
+                        modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
 

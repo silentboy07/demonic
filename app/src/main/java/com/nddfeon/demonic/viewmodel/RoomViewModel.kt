@@ -135,8 +135,14 @@ class RoomViewModel @Inject constructor(
                 val isDj = (room.djId == currentUid)
                 val canControl = isHost || isDj || room.canControlPlayback(currentUid)
 
+                val currentHostId = room.hostId
+                val updatedMembers = _uiState.value.members.map { member ->
+                    member.copy(isHost = currentHostId.isNotEmpty() && member.uid == currentHostId)
+                }.sortedWith(compareByDescending<Member> { it.isHost }.thenBy { it.joinedAt })
+
                 _uiState.value = _uiState.value.copy(
                     room = room,
+                    members = updatedMembers,
                     isHost = isHost,
                     isDj = isDj,
                     canControlPlayback = canControl
@@ -284,9 +290,24 @@ class RoomViewModel @Inject constructor(
 
     private fun observeMembers() {
         viewModelScope.launch {
-            val hostId = _uiState.value.room?.hostId ?: ""
-            roomRepository.observeMembers(roomCode, hostId).collect { members ->
-                _uiState.value = _uiState.value.copy(members = members)
+            roomRepository.observeMembers(roomCode, "").collect { rawMembers ->
+                val currentHostId = _uiState.value.room?.hostId ?: ""
+                val effectiveUser = getEffectiveUser()
+                val withCurrent = if (rawMembers.none { it.uid == effectiveUser.uid }) {
+                    rawMembers + Member(
+                        uid = effectiveUser.uid,
+                        name = effectiveUser.displayName,
+                        photoUrl = effectiveUser.photoUrl ?: "",
+                        joinedAt = System.currentTimeMillis(),
+                        isHost = (effectiveUser.uid == currentHostId)
+                    )
+                } else {
+                    rawMembers
+                }
+                val updatedMembers = withCurrent.map { member ->
+                    member.copy(isHost = currentHostId.isNotEmpty() && member.uid == currentHostId)
+                }.sortedWith(compareByDescending<Member> { it.isHost }.thenBy { it.joinedAt })
+                _uiState.value = _uiState.value.copy(members = updatedMembers)
             }
         }
     }

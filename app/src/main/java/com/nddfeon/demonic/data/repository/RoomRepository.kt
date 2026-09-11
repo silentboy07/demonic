@@ -209,7 +209,9 @@ class FirebaseRoomRepository @Inject constructor(
                         "photoUrl" to (user.photoUrl ?: ""),
                         "joinedAt" to ServerValue.TIMESTAMP
                     )
-                    roomsRef.child("members").child(user.uid).setValue(memberData).await()
+                    val memberRef = roomsRef.child("members").child(user.uid)
+                    memberRef.setValue(memberData).await()
+                    memberRef.onDisconnect().removeValue()
                 }
             } catch (_: Exception) {}
         }
@@ -234,6 +236,18 @@ class FirebaseRoomRepository @Inject constructor(
                 )
             }
             updatePublicRoomsList()
+            scope.launch {
+                try {
+                    val memberData = hashMapOf<String, Any>(
+                        "name" to user.displayName,
+                        "photoUrl" to (user.photoUrl ?: ""),
+                        "joinedAt" to ServerValue.TIMESTAMP
+                    )
+                    val memberRef = database.getReference("rooms").child(upperCode).child("members").child(user.uid)
+                    memberRef.setValue(memberData).await()
+                    memberRef.onDisconnect().removeValue()
+                } catch (_: Exception) {}
+            }
             return Result.success(localRoom)
         }
 

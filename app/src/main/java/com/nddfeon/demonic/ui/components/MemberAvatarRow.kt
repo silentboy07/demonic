@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.ui.components
+package com.nddfeon.demonic.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
@@ -65,6 +65,7 @@ fun MemberAvatarRow(
     djId: String? = null,
     isHostUser: Boolean = false,
     onPassAux: (uid: String) -> Unit = {},
+    onOpenMembersSheet: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedMemberForAux by remember { mutableStateOf<Member?>(null) }
@@ -80,15 +81,25 @@ fun MemberAvatarRow(
                 .clip(RoundedCornerShape(12.dp))
                 .background(DemonicSurfaceVariant)
                 .border(1.dp, DemonicBorder, RoundedCornerShape(12.dp))
+                .clickable { onOpenMembersSheet() }
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "${members.size} listening",
-                color = DemonicTextMuted,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF00F5D4))
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                    text = "${members.size} listening",
+                    color = DemonicTextPrimary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
 
         LazyRow(
