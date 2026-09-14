@@ -282,9 +282,7 @@ fun RoomScreen(
 
     LaunchedEffect(uiState.messages.size) {
         if (uiState.messages.isNotEmpty() && isScrolledToBottom) {
-            scope.launch {
-                listState.animateScrollToItem(uiState.messages.size - 1)
-            }
+            listState.animateScrollToItem(uiState.messages.size - 1)
         }
     }
 
@@ -720,10 +718,17 @@ fun RoomScreen(
                                 fun configureWebView(v: android.view.View) {
                                     if (v is android.webkit.WebView) {
                                         viewModel.playerManager.attachWebView(v)
+                                        v.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+                                        v.isVerticalScrollBarEnabled = false
+                                        v.isHorizontalScrollBarEnabled = false
                                         v.settings.apply {
                                             javaScriptEnabled = true
                                             mediaPlaybackRequiresUserGesture = false
                                             domStorageEnabled = true
+                                            databaseEnabled = true
+                                            cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                                            @Suppress("DEPRECATION")
+                                            setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
                                             val currentUa = userAgentString ?: ""
                                             if (currentUa.contains("; wv") || currentUa.contains("Version/")) {
                                                 userAgentString = currentUa

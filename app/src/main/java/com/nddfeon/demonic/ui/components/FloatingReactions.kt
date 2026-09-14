@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.ui.components
+package com.nddfeon.demonic.ui.components
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
@@ -22,12 +22,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nddfeon.demonic.data.model.LiveReaction
@@ -61,27 +61,27 @@ private fun FloatingEmojiParticle(
     val randomX = remember(key) { Random.nextInt(-120, 120) }
     val startScale = remember(key) { Random.nextDouble(0.8, 1.4).toFloat() }
 
-    val offsetY = remember { Animatable(0f) }
-    val alpha = remember { Animatable(1f) }
-    val scale = remember { Animatable(startScale) }
+    val offsetY = remember(key) { Animatable(0f) }
+    val alpha = remember(key) { Animatable(1f) }
+    val scale = remember(key) { Animatable(startScale) }
 
     LaunchedEffect(key) {
-        offsetY.animateTo(
-            targetValue = -500f,
-            animationSpec = tween(durationMillis = 2200, easing = FastOutSlowInEasing)
-        )
-    }
-
-    LaunchedEffect(key) {
-        alpha.animateTo(
-            targetValue = 0f,
-            animationSpec = tween(durationMillis = 2200, delayMillis = 400)
-        )
+        launch {
+            offsetY.animateTo(
+                targetValue = -500f,
+                animationSpec = tween(durationMillis = 2200, easing = FastOutSlowInEasing)
+            )
+        }
+        launch {
+            alpha.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = 2200, delayMillis = 400)
+            )
+        }
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.BottomCenter
     ) {
         Text(
@@ -89,8 +89,11 @@ private fun FloatingEmojiParticle(
             fontSize = 32.sp,
             modifier = Modifier
                 .offset { IntOffset(randomX, offsetY.value.toInt()) }
-                .alpha(alpha.value)
-                .scale(scale.value)
+                .graphicsLayer {
+                    this.alpha = alpha.value
+                    this.scaleX = scale.value
+                    this.scaleY = scale.value
+                }
         )
     }
 }

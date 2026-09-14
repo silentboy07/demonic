@@ -237,22 +237,13 @@ fun ChatMessageItem(
         else -> ""
     }
 
-    AnimatedVisibility(
-        visible = true,
-        enter = fadeIn(animationSpec = spring(stiffness = 500f)) +
-                slideInVertically(
-                    initialOffsetY = { 20 },
-                    animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f)
-                ),
-        modifier = modifier.fillMaxWidth()
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start,
-            verticalAlignment = Alignment.Bottom
-        ) {
             if (!isOwnMessage) {
                 // Sender Avatar
                 Box(
@@ -374,7 +365,6 @@ fun ChatMessageItem(
                 }
             }
         }
-    }
 }
 
 @Composable

@@ -6,7 +6,9 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -80,8 +82,8 @@ fun LiveEqualizerBars(
     val transition = rememberInfiniteTransition(label = "equalizer")
 
     val bar1 by transition.animateFloat(
-        initialValue = 5f,
-        targetValue = if (isPlaying) 22f else 5f,
+        initialValue = 0.22f,
+        targetValue = if (isPlaying) 0.92f else 0.22f,
         animationSpec = infiniteRepeatable(
             animation = tween(340, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
@@ -90,8 +92,8 @@ fun LiveEqualizerBars(
     )
 
     val bar2 by transition.animateFloat(
-        initialValue = 18f,
-        targetValue = if (isPlaying) 6f else 6f,
+        initialValue = 0.75f,
+        targetValue = if (isPlaying) 0.25f else 0.25f,
         animationSpec = infiniteRepeatable(
             animation = tween(420, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
@@ -100,8 +102,8 @@ fun LiveEqualizerBars(
     )
 
     val bar3 by transition.animateFloat(
-        initialValue = 8f,
-        targetValue = if (isPlaying) 24f else 7f,
+        initialValue = 0.33f,
+        targetValue = if (isPlaying) 1.0f else 0.30f,
         animationSpec = infiniteRepeatable(
             animation = tween(280, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
@@ -110,8 +112,8 @@ fun LiveEqualizerBars(
     )
 
     val bar4 by transition.animateFloat(
-        initialValue = 15f,
-        targetValue = if (isPlaying) 7f else 5f,
+        initialValue = 0.62f,
+        targetValue = if (isPlaying) 0.30f else 0.22f,
         animationSpec = infiniteRepeatable(
             animation = tween(390, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
@@ -119,23 +121,33 @@ fun LiveEqualizerBars(
         label = "bar4"
     )
 
-    Row(
-        modifier = modifier.height(24.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-        verticalAlignment = Alignment.Bottom
+    Canvas(
+        modifier = modifier.size(width = 24.dp, height = 24.dp)
     ) {
-        val bars = listOf(bar1, bar2, bar3, bar4)
-        bars.forEach { heightVal ->
-            Box(
-                modifier = Modifier
-                    .width(3.5.dp)
-                    .height(heightVal.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(secondaryColor, primaryColor)
-                        )
-                    )
+        val barWidth = 3.5.dp.toPx()
+        val spacing = 3.dp.toPx()
+        val totalWidth = 4 * barWidth + 3 * spacing
+        val startX = (size.width - totalWidth) / 2f
+        val maxHeight = size.height
+        val cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+
+        val brush = Brush.verticalGradient(
+            colors = listOf(secondaryColor, primaryColor),
+            startY = 0f,
+            endY = maxHeight
+        )
+
+        val fractions = floatArrayOf(bar1, bar2, bar3, bar4)
+        for (i in 0 until 4) {
+            val barHeight = maxHeight * fractions[i].coerceIn(0.18f, 1f)
+            val left = startX + i * (barWidth + spacing)
+            val top = maxHeight - barHeight
+
+            drawRoundRect(
+                brush = brush,
+                topLeft = Offset(left, top),
+                size = Size(barWidth, barHeight),
+                cornerRadius = cornerRadius
             )
         }
     }

@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -176,7 +177,10 @@ private fun LoveExplosionEffect(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .scale(pulseScale)
+                    .graphicsLayer {
+                        this.scaleX = pulseScale
+                        this.scaleY = pulseScale
+                    }
                     .clip(RoundedCornerShape(24.dp))
                     .background(
                         Brush.verticalGradient(
@@ -289,7 +293,7 @@ private fun PartyFlamesEffect(
                     ),
                     shape = RoundedCornerShape(0.dp)
                 )
-                .alpha(borderAlpha)
+                .graphicsLayer { this.alpha = borderAlpha }
         )
 
         // Rising Fire Sparks
@@ -622,7 +626,7 @@ private fun AnimatedFloatingHeart(
     containerWidth: Float,
     containerHeight: Float
 ) {
-    val progress = remember { Animatable(0f) }
+    val progress = remember(particle.id) { Animatable(0f) }
 
     LaunchedEffect(particle.id) {
         delay(particle.delayMs.toLong())
@@ -635,26 +639,34 @@ private fun AnimatedFloatingHeart(
         )
     }
 
-    val currentProgress = progress.value
-    if (currentProgress in 0.01f..0.99f) {
-        val yPos = containerHeight * (1f - currentProgress)
-        val sway = sin(currentProgress * 4f * Math.PI.toFloat()) * particle.swayAmplitude
-        val xPos = (containerWidth * particle.startX) + sway
-
-        val alpha = if (currentProgress < 0.2f) {
-            currentProgress / 0.2f
-        } else if (currentProgress > 0.8f) {
-            (1f - currentProgress) / 0.2f
-        } else {
-            1f
-        }
-
-        Text(
-            text = particle.emoji,
-            fontSize = particle.sizeSp,
-            modifier = Modifier
-                .offset { IntOffset(xPos.roundToInt(), yPos.roundToInt()) }
-                .alpha(alpha)
-        )
-    }
+    Text(
+        text = particle.emoji,
+        fontSize = particle.sizeSp,
+        modifier = Modifier
+            .offset {
+                val currentProgress = progress.value
+                if (currentProgress !in 0.005f..0.995f) {
+                    IntOffset(-10000, -10000)
+                } else {
+                    val yPos = containerHeight * (1f - currentProgress)
+                    val sway = sin(currentProgress * 4f * Math.PI.toFloat()) * particle.swayAmplitude
+                    val xPos = (containerWidth * particle.startX) + sway
+                    IntOffset(xPos.roundToInt(), yPos.roundToInt())
+                }
+            }
+            .graphicsLayer {
+                val currentProgress = progress.value
+                if (currentProgress !in 0.005f..0.995f) {
+                    this.alpha = 0f
+                } else {
+                    this.alpha = if (currentProgress < 0.2f) {
+                        currentProgress / 0.2f
+                    } else if (currentProgress > 0.8f) {
+                        (1f - currentProgress) / 0.2f
+                    } else {
+                        1f
+                    }
+                }
+            }
+    )
 }
