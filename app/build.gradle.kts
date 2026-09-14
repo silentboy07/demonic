@@ -53,11 +53,12 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // Firebase
+    // Firebase & Google Services
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.database)
     implementation(libs.play.services.auth)
+    implementation(libs.play.services.ads)
 
     // YouTube Player & Coil
     implementation(libs.youtube.player.core)

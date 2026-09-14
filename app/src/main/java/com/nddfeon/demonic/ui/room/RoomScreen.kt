@@ -99,6 +99,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.UnfoldMore
 import coil.compose.AsyncImage
+import com.nddfeon.demonic.DemonicApp
 import com.nddfeon.demonic.player.DemonicPlaybackService
 import androidx.compose.ui.text.style.TextAlign
 import com.nddfeon.demonic.data.model.ChatMessage
@@ -178,7 +179,16 @@ fun RoomScreen(
             if (!hasNavigatedBack) {
                 hasNavigatedBack = true
                 reason?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
-                onNavigateBack()
+                val act = context as? android.app.Activity
+                val app = context.applicationContext as? DemonicApp
+                val isInterstitialEnabled = app?.ownerConfigManager?.interstitialAdsEnabled?.value ?: false
+                if (act != null && isInterstitialEnabled) {
+                    com.nddfeon.demonic.ads.AdMobManager.showInterstitial(act) {
+                        onNavigateBack()
+                    }
+                } else {
+                    onNavigateBack()
+                }
             }
         }
     }

@@ -1,8 +1,13 @@
 package com.nddfeon.demonic.ui.components
 
+import android.app.Activity
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.collectAsState
+import com.nddfeon.demonic.DemonicApp
+import com.nddfeon.demonic.ads.AdMobManager
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -366,6 +371,34 @@ fun RoomFxAndThemesBottomSheet(
                         )
 
                         Spacer(modifier = Modifier.height(10.dp))
+
+                        val context = LocalContext.current
+                        val app = context.applicationContext as? DemonicApp
+                        val isAdsEnabled = app?.ownerConfigManager?.isAdsEnabled?.collectAsState()?.value ?: false
+                        val isRewardedEnabled = app?.ownerConfigManager?.rewardedAdsEnabled?.collectAsState()?.value ?: false
+
+                        if (isAdsEnabled && isRewardedEnabled) {
+                            SpecialFxCard(
+                                emoji = "🎁",
+                                title = "Watch Video Ad -> Free VIP Flex 👑",
+                                description = "Watch a quick 15-30s ad to unlock and fire the VIP Crown Flex for everyone!",
+                                color = Color(0xFFFFD700),
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                    val act = context as? Activity
+                                    if (act != null) {
+                                        AdMobManager.showRewarded(
+                                            activity = act,
+                                            onRewardEarned = {
+                                                onTriggerSpecialEffect(SpecialEffectType.CROWN_VIP, "", "ROYAL VIP VIBES 👑 (Ad Rewarded!)")
+                                                onDismiss()
+                                            }
+                                        )
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
 
                         // Party Flames
                         SpecialFxCard(

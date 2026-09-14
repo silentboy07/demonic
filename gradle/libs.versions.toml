@@ -13,6 +13,7 @@ ksp = "2.2.10-2.0.2"
 googleServices = "4.4.2"
 firebaseBom = "33.9.0"
 playServicesAuth = "21.3.0"
+playServicesAds = "23.6.0"
 youtubePlayer = "13.0.0"
 coil = "2.7.0"
 navigationCompose = "2.8.8"
@@ -48,6 +49,7 @@ firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.r
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth-ktx" }
 firebase-database = { group = "com.google.firebase", name = "firebase-database-ktx" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
+play-services-ads = { group = "com.google.android.gms", name = "play-services-ads", version.ref = "playServicesAds" }
 
 # YouTube & Media
 youtube-player-core = { group = "com.pierfrancescosoffritti.androidyoutubeplayer", name = "core", version.ref = "youtubePlayer" }

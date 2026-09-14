@@ -63,5 +63,6 @@ class DemonicApp : Application(), ImageLoaderFactory {
         youTubePlayerManager = YouTubePlayerManager()
         youTubeSearchManager = YouTubeSearchManager()
         ownerConfigManager = OwnerConfigManager(this, database)
+        com.nddfeon.demonic.ads.AdMobManager.initialize(this)
     }
 }
