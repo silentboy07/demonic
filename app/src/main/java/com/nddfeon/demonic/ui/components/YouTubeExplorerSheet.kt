@@ -233,7 +233,7 @@ fun YouTubeExplorerSheet(
 
                     Column {
                         Text(
-                            text = "DEMONIC MUSIC HUB",
+                            text = "AUXPARTY MUSIC HUB",
                             color = DemonicTextPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Black,

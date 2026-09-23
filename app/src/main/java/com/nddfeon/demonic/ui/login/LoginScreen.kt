@@ -193,11 +193,11 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(28.dp))
 
                 Text(
-                    text = "DEMONIC",
+                    text = "AUXPARTY",
                     color = DemonicTextPrimary,
-                    fontSize = 42.sp,
+                    fontSize = 38.sp,
                     fontWeight = FontWeight.Black,
-                    letterSpacing = 6.sp
+                    letterSpacing = 4.sp
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))

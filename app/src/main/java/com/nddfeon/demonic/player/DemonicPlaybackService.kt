@@ -280,8 +280,8 @@ class DemonicPlaybackService : Service() {
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_music_note)
-            .setContentTitle(currentVideoTitle.ifEmpty { "Demonic Music Stream" })
-            .setContentText(if (currentRoomCode.isNotEmpty()) "Room $currentRoomCode • Synchronized" else "DEMONIC Music Playback")
+            .setContentTitle(currentVideoTitle.ifEmpty { "AuxParty Live Music" })
+            .setContentText(if (currentRoomCode.isNotEmpty()) "Room $currentRoomCode • Synchronized" else "AuxParty Music Playback")
             .setContentIntent(openPendingIntent)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)

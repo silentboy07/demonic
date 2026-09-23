@@ -318,7 +318,7 @@ fun HomeScreen(
 
         // App Monogram Title
         Text(
-            text = "DEMONIC ROOMS",
+            text = "AUXPARTY ROOMS",
             color = DemonicCrimson,
             fontSize = 13.sp,
             fontWeight = FontWeight.Black,

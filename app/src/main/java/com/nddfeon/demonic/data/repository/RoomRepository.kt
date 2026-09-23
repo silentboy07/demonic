@@ -342,7 +342,7 @@ class FirebaseRoomRepository @Inject constructor(
                         val joinMsg = hashMapOf<String, Any>(
                             "id" to sysMsgId,
                             "senderId" to "system",
-                            "senderName" to "DEMONIC",
+                            "senderName" to "AuxParty",
                             "text" to "${user.displayName} joined the room 👋",
                             "sentAt" to ServerValue.TIMESTAMP
                         )
@@ -399,7 +399,7 @@ class FirebaseRoomRepository @Inject constructor(
                 val leaveMsg = hashMapOf<String, Any>(
                     "id" to sysMsgId,
                     "senderId" to "system",
-                    "senderName" to "DEMONIC",
+                    "senderName" to "AuxParty",
                     "text" to "$displayName left the room 🚪",
                     "sentAt" to ServerValue.TIMESTAMP
                 )
@@ -1077,7 +1077,7 @@ class FirebaseRoomRepository @Inject constructor(
                 val sysMsg = hashMapOf<String, Any>(
                     "id" to sysMsgId,
                     "senderId" to "system",
-                    "senderName" to "DEMONIC",
+                    "senderName" to "AuxParty",
                     "text" to "$hostName timed out $targetName for $durationMinutes min ⏱️",
                     "sentAt" to ServerValue.TIMESTAMP
                 )
@@ -1103,7 +1103,7 @@ class FirebaseRoomRepository @Inject constructor(
                 val sysMsg = hashMapOf<String, Any>(
                     "id" to sysMsgId,
                     "senderId" to "system",
-                    "senderName" to "DEMONIC",
+                    "senderName" to "AuxParty",
                     "text" to "$hostName removed timeout for $targetName 🔊",
                     "sentAt" to ServerValue.TIMESTAMP
                 )
@@ -1126,7 +1126,7 @@ class FirebaseRoomRepository @Inject constructor(
                 val sysMsg = hashMapOf<String, Any>(
                     "id" to sysMsgId,
                     "senderId" to "system",
-                    "senderName" to "DEMONIC",
+                    "senderName" to "AuxParty",
                     "text" to "🎨 Room aesthetic switched to ${themePreset.emoji} ${themePreset.displayName}",
                     "sentAt" to ServerValue.TIMESTAMP
                 )
