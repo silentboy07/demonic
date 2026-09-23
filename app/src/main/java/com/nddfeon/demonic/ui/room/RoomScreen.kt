@@ -1,5 +1,7 @@
 package com.nddfeon.demonic.ui.room
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
@@ -7,6 +9,11 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.nddfeon.demonic.player.YouTubeUrlParser
+import com.nddfeon.demonic.ui.components.SmartClipboardBanner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -260,10 +267,23 @@ fun RoomScreen(
 
     val lifecycleOwner = LocalLifecycleOwner.current
     var playerViewRef by remember { mutableStateOf<YouTubePlayerView?>(null) }
+    var clipboardYoutubeVideoId by remember { mutableStateOf<String?>(null) }
+    var dismissedClipboardVideoId by rememberSaveable { mutableStateOf("") }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_DESTROY) {
+            if (event == Lifecycle.Event.ON_RESUME) {
+                try {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    if (clipboard?.hasPrimaryClip() == true) {
+                        val clipText = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
+                        val extracted = YouTubeUrlParser.extractVideoId(clipText)
+                        if (!extracted.isNullOrBlank() && extracted != dismissedClipboardVideoId && extracted != uiState.room?.videoId) {
+                            clipboardYoutubeVideoId = extracted
+                        }
+                    }
+                } catch (_: Exception) {}
+            } else if (event == Lifecycle.Event.ON_DESTROY) {
                 playerViewRef?.release()
                 viewModel.playerManager.release()
             }
@@ -597,7 +617,7 @@ fun RoomScreen(
                                             putExtra(Intent.EXTRA_SUBJECT, "Join my DEMONIC synchronized music room!")
                                             putExtra(
                                                 Intent.EXTRA_TEXT,
-                                                "Join my synchronized room on DEMONIC with code: ${uiState.roomCode}\n\nDeep Link: demonic://room/${uiState.roomCode}"
+                                                "🔥 Join my synchronized music room on DEMONIC!\n\n🎵 Room Code: ${uiState.roomCode}\n👉 Tap to join instantly: https://demonic.app/room/${uiState.roomCode}\n\n(Install DEMONIC & sync music together in real-time!)"
                                             )
                                         }
                                         context.startActivity(Intent.createChooser(shareIntent, "Share Room Code"))
@@ -1550,6 +1570,37 @@ fun RoomScreen(
                                 fontWeight = FontWeight.ExtraBold
                             )
                         }
+                    }
+                }
+
+                // Smart Clipboard YouTube Link Detector Banner
+                AnimatedVisibility(
+                    visible = clipboardYoutubeVideoId != null,
+                    enter = slideInVertically { it },
+                    exit = slideOutVertically { it }
+                ) {
+                    clipboardYoutubeVideoId?.let { vid ->
+                        SmartClipboardBanner(
+                            videoId = vid,
+                            canControlPlayback = uiState.canControlPlayback,
+                            onPlayNow = {
+                                viewModel.playTrack(vid, "YouTube Video: $vid")
+                                dismissedClipboardVideoId = vid
+                                clipboardYoutubeVideoId = null
+                                Toast.makeText(context, "Playing detected video 🎵", Toast.LENGTH_SHORT).show()
+                            },
+                            onAddToQueue = {
+                                viewModel.addToQueue(vid, "YouTube Video: $vid")
+                                dismissedClipboardVideoId = vid
+                                clipboardYoutubeVideoId = null
+                                Toast.makeText(context, "Added to Queue ➕", Toast.LENGTH_SHORT).show()
+                            },
+                            onDismiss = {
+                                dismissedClipboardVideoId = vid
+                                clipboardYoutubeVideoId = null
+                            },
+                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
+                        )
                     }
                 }
 

@@ -1,7 +1,8 @@
-﻿package com.nddfeon.demonic.viewmodel
+package com.nddfeon.demonic.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nddfeon.demonic.data.manager.RecentRoomsManager
 import com.nddfeon.demonic.data.model.Room
 import com.nddfeon.demonic.data.model.UserAccount
 import com.nddfeon.demonic.data.repository.AuthRepository
@@ -27,7 +28,8 @@ data class HomeUiState(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val roomRepository: RoomRepository
+    private val roomRepository: RoomRepository,
+    val recentRoomsManager: RecentRoomsManager
 ) : ViewModel() {
 
     val currentUser: StateFlow<UserAccount?> = authRepository.authStateFlow()
@@ -62,16 +64,22 @@ class HomeViewModel @Inject constructor(
     }
 
     fun updateRoomCodeInput(input: String) {
-        val filtered = input.uppercase().filter { it.isLetterOrDigit() }.take(6)
+        val cleaned = if (input.contains("/room/")) {
+            input.substringAfter("/room/").takeWhile { it.isLetterOrDigit() }
+        } else {
+            input
+        }
+        val filtered = cleaned.uppercase().filter { it.isLetterOrDigit() }.take(6)
         _uiState.value = _uiState.value.copy(roomCodeInput = filtered, errorMessage = null)
     }
 
-    fun createRoom(onRoomCreated: (String) -> Unit) {
+    fun createRoom(initialVideoId: String = "", onRoomCreated: (String) -> Unit) {
         val user = getEffectiveUser()
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreatingRoom = true, errorMessage = null)
-            val result = roomRepository.createRoom(user)
+            val result = roomRepository.createRoom(user, initialVideoId)
             result.onSuccess { code ->
+                recentRoomsManager.addRoom(code, isHost = true)
                 _uiState.value = _uiState.value.copy(isCreatingRoom = false)
                 onRoomCreated(code)
             }.onFailure { error ->
@@ -95,6 +103,7 @@ class HomeViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isJoiningRoom = true, errorMessage = null)
             val result = roomRepository.joinRoom(trimmed, user)
             result.onSuccess { room ->
+                recentRoomsManager.addRoom(room.roomCode, isHost = false)
                 _uiState.value = _uiState.value.copy(isJoiningRoom = false)
                 onRoomJoined(room.roomCode)
             }.onFailure { error ->

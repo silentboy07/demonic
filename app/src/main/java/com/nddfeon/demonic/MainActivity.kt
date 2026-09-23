@@ -1,6 +1,8 @@
 package com.nddfeon.demonic
 
 import android.app.PictureInPictureParams
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
@@ -10,12 +12,14 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -34,6 +38,40 @@ import com.nddfeon.demonic.viewmodel.RoomViewModel
 class MainActivity : ComponentActivity() {
 
     private var activeInRoom = false
+    private var navController: NavHostController? = null
+
+    private fun extractRoomCodeFromUri(uri: Uri?): String? {
+        if (uri == null) return null
+        try {
+            // Match demonic://room/{roomCode}
+            if (uri.scheme.equals("demonic", ignoreCase = true) && uri.host.equals("room", ignoreCase = true)) {
+                return uri.lastPathSegment?.trim()?.uppercase()
+            }
+            // Match https://demonic.app/room/{roomCode} or http://demonic.app/room/{roomCode}
+            if ((uri.scheme.equals("https", ignoreCase = true) || uri.scheme.equals("http", ignoreCase = true)) &&
+                uri.host.equals("demonic.app", ignoreCase = true)) {
+                val segments = uri.pathSegments
+                if (segments.size >= 2 && segments[0].equals("room", ignoreCase = true)) {
+                    return segments[1].trim().uppercase()
+                }
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val handled = navController?.handleDeepLink(intent) ?: false
+        if (!handled) {
+            val roomCode = extractRoomCodeFromUri(intent.data)
+            if (!roomCode.isNullOrBlank()) {
+                navController?.navigate("room/$roomCode") {
+                    launchSingleTop = true
+                }
+            }
+        }
+    }
 
     fun setActiveInRoom(active: Boolean) {
         activeInRoom = active
@@ -86,12 +124,27 @@ class MainActivity : ComponentActivity() {
                     color = DemonicBackground
                 ) {
                     val navController = rememberNavController()
+                    this@MainActivity.navController = navController
                     val context = LocalContext.current
                     val app = context.applicationContext as DemonicApp
 
+                    val startDestination = if (app.authRepository.currentUser != null) "home" else "login"
+
+                    LaunchedEffect(Unit) {
+                        val initialUri = intent?.data
+                        val roomCode = extractRoomCodeFromUri(initialUri)
+                        if (!roomCode.isNullOrBlank()) {
+                            if (navController.currentDestination?.route?.startsWith("room") != true) {
+                                navController.navigate("room/$roomCode") {
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
+                    }
+
                     NavHost(
                         navController = navController,
-                        startDestination = "login"
+                        startDestination = startDestination
                     ) {
                         composable("login") {
                             val loginViewModel: LoginViewModel = viewModel(
@@ -117,7 +170,7 @@ class MainActivity : ComponentActivity() {
                                 factory = object : ViewModelProvider.Factory {
                                     @Suppress("UNCHECKED_CAST")
                                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                                        return HomeViewModel(app.authRepository, app.roomRepository) as T
+                                        return HomeViewModel(app.authRepository, app.roomRepository, app.recentRoomsManager) as T
                                     }
                                 }
                             )
@@ -144,7 +197,8 @@ class MainActivity : ComponentActivity() {
                             ),
                             deepLinks = listOf(
                                 navDeepLink { uriPattern = "demonic://room/{roomCode}" },
-                                navDeepLink { uriPattern = "https://demonic.app/room/{roomCode}" }
+                                navDeepLink { uriPattern = "https://demonic.app/room/{roomCode}" },
+                                navDeepLink { uriPattern = "http://demonic.app/room/{roomCode}" }
                             )
                         ) { backStackEntry ->
                             val roomCode = backStackEntry.arguments?.getString("roomCode") ?: ""
@@ -179,9 +233,10 @@ class MainActivity : ComponentActivity() {
                                 onNavigateBack = {
                                     val currentRoute = navController.currentDestination?.route
                                     if (currentRoute?.startsWith("room") == true) {
-                                        val popped = navController.popBackStack("home", inclusive = false)
+                                        val targetDest = if (app.authRepository.currentUser != null) "home" else "login"
+                                        val popped = navController.popBackStack(targetDest, inclusive = false)
                                         if (!popped) {
-                                            navController.navigate("home") {
+                                            navController.navigate(targetDest) {
                                                 popUpTo(0) { inclusive = true }
                                                 launchSingleTop = true
                                             }

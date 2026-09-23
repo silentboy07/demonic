@@ -52,8 +52,9 @@ fun RoomQrDialog(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
-    val joinUrl = "demonic://room/" + roomCode
-    val qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=demonic%3A%2F%2Froom%2F" + roomCode + "&color=FF2A54&bgcolor=14111A"
+    val joinUrl = "https://demonic.app/room/" + roomCode
+    val encodedUrl = java.net.URLEncoder.encode(joinUrl, "UTF-8")
+    val qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=" + encodedUrl + "&color=FF2A54&bgcolor=14111A"
 
     BasicAlertDialog(onDismissRequest = onDismiss) {
         Box(

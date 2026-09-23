@@ -1,6 +1,11 @@
 package com.nddfeon.demonic.ui.home
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,13 +29,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,17 +58,19 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import com.nddfeon.demonic.data.manager.OwnerConfigManager
+import com.nddfeon.demonic.player.YouTubeUrlParser
 import com.nddfeon.demonic.ui.components.DemonicBannerAd
 import com.nddfeon.demonic.ui.components.DemonicButton
 import com.nddfeon.demonic.ui.components.DemonicButtonVariant
 import com.nddfeon.demonic.ui.components.DemonicTextField
 import com.nddfeon.demonic.ui.components.OwnerControlBottomSheet
+import com.nddfeon.demonic.ui.components.SmartClipboardBanner
 import com.nddfeon.demonic.ui.theme.DemonicBackground
 import com.nddfeon.demonic.ui.theme.DemonicBorder
 import com.nddfeon.demonic.ui.theme.DemonicCrimson
@@ -81,8 +95,35 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
+    val context = LocalContext.current
     val currentUser by viewModel.currentUser.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val recentRooms by viewModel.recentRoomsManager.recentRooms.collectAsState()
+
+    var clipboardYoutubeVideoId by remember { mutableStateOf<String?>(null) }
+    var dismissedClipboardVideoId by rememberSaveable { mutableStateOf("") }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                try {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    if (clipboard?.hasPrimaryClip() == true) {
+                        val clipText = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
+                        val extracted = YouTubeUrlParser.extractVideoId(clipText)
+                        if (!extracted.isNullOrBlank() && extracted != dismissedClipboardVideoId) {
+                            clipboardYoutubeVideoId = extracted
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val isAdsEnabled by ownerConfigManager.isAdsEnabled.collectAsState()
     val globalAnnouncement by ownerConfigManager.globalAnnouncement.collectAsState()
@@ -236,6 +277,41 @@ fun HomeScreen(
                         )
                     }
                 }
+            }
+        }
+
+        // Smart Clipboard YouTube Link Detector
+        AnimatedVisibility(
+            visible = clipboardYoutubeVideoId != null,
+            enter = slideInVertically { -it },
+            exit = slideOutVertically { -it }
+        ) {
+            clipboardYoutubeVideoId?.let { vid ->
+                SmartClipboardBanner(
+                    videoId = vid,
+                    canControlPlayback = true,
+                    onPlayNow = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                        viewModel.createRoom(initialVideoId = vid) { code ->
+                            onNavigateToRoom(code)
+                        }
+                        dismissedClipboardVideoId = vid
+                        clipboardYoutubeVideoId = null
+                    },
+                    onAddToQueue = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                        viewModel.createRoom(initialVideoId = vid) { code ->
+                            onNavigateToRoom(code)
+                        }
+                        dismissedClipboardVideoId = vid
+                        clipboardYoutubeVideoId = null
+                    },
+                    onDismiss = {
+                        dismissedClipboardVideoId = vid
+                        clipboardYoutubeVideoId = null
+                    },
+                    modifier = Modifier.padding(bottom = 14.dp)
+                )
             }
         }
 
@@ -409,6 +485,127 @@ fun HomeScreen(
                         }
                     }
                 )
+            }
+        }
+
+        // Section: Recent Rooms History
+        if (recentRooms.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = null,
+                        tint = DemonicSyncTeal,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "RECENT ROOMS",
+                        color = DemonicSyncTeal,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp
+                    )
+                }
+                Text(
+                    text = "Clear All",
+                    color = DemonicTextMuted,
+                    fontSize = 11.sp,
+                    modifier = Modifier.clickable {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        viewModel.recentRoomsManager.clearAll()
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                recentRooms.forEach { recent ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(DemonicSurface)
+                            .border(1.dp, DemonicSurfaceVariant, RoundedCornerShape(16.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (recent.isHost) DemonicCrimson.copy(alpha = 0.2f) else DemonicViolet.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (recent.isHost) "👑" else "🎧",
+                                    fontSize = 16.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "ROOM ${recent.roomCode}",
+                                        color = DemonicTextPrimary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(if (recent.isHost) DemonicCrimson.copy(alpha = 0.2f) else DemonicViolet.copy(alpha = 0.2f))
+                                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = if (recent.isHost) "HOST" else "MEMBER",
+                                            color = if (recent.isHost) DemonicCrimson else DemonicViolet,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            DemonicButton(
+                                text = "REJOIN ▶",
+                                variant = DemonicButtonVariant.SECONDARY,
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    onNavigateToRoom(recent.roomCode)
+                                },
+                                modifier = Modifier.height(34.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    viewModel.recentRoomsManager.removeRoom(recent.roomCode)
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Remove",
+                                    tint = DemonicTextMuted,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 

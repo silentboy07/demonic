@@ -27,6 +27,8 @@ class DemonicApp : Application(), ImageLoaderFactory {
         private set
     lateinit var ownerConfigManager: OwnerConfigManager
         private set
+    lateinit var recentRoomsManager: com.nddfeon.demonic.data.manager.RecentRoomsManager
+        private set
 
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
@@ -63,6 +65,7 @@ class DemonicApp : Application(), ImageLoaderFactory {
         youTubePlayerManager = YouTubePlayerManager()
         youTubeSearchManager = YouTubeSearchManager()
         ownerConfigManager = OwnerConfigManager(this, database)
+        recentRoomsManager = com.nddfeon.demonic.data.manager.RecentRoomsManager(this)
         com.nddfeon.demonic.ads.AdMobManager.initialize(this)
     }
 }
