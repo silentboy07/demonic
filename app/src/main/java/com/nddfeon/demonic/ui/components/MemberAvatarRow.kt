@@ -57,6 +57,9 @@ import com.nddfeon.demonic.ui.theme.DemonicSurfaceVariant
 import com.nddfeon.demonic.ui.theme.DemonicTextMuted
 import com.nddfeon.demonic.ui.theme.DemonicTextPrimary
 import com.nddfeon.demonic.ui.theme.DemonicViolet
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.ui.graphics.Brush
+import com.nddfeon.demonic.data.model.RoomThemePreset
 import com.nddfeon.demonic.ui.theme.DemonicWarningAmber
 
 @Composable
@@ -64,8 +67,10 @@ fun MemberAvatarRow(
     members: List<Member>,
     djId: String? = null,
     isHostUser: Boolean = false,
+    theme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
     onPassAux: (uid: String) -> Unit = {},
     onOpenMembersSheet: () -> Unit = {},
+    onOpenFxStudio: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedMemberForAux by remember { mutableStateOf<Member?>(null) }
@@ -103,9 +108,9 @@ fun MemberAvatarRow(
         }
 
         LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(end = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             itemsIndexed(
@@ -132,6 +137,41 @@ fun MemberAvatarRow(
                         }
                     )
                 }
+            }
+        }
+
+        // Dedicated FX Studio Button at Member Row
+        Box(
+            modifier = Modifier
+                .padding(start = 6.dp, end = 16.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            theme.primaryColor.copy(alpha = 0.22f),
+                            theme.secondaryColor.copy(alpha = 0.16f)
+                        )
+                    )
+                )
+                .border(1.dp, theme.primaryColor.copy(alpha = 0.75f), RoundedCornerShape(12.dp))
+                .clickable { onOpenFxStudio() }
+                .padding(horizontal = 9.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Palette,
+                    contentDescription = "FX Studio",
+                    tint = theme.primaryColor,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "FX Studio 🎨",
+                    color = theme.primaryColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }

@@ -6,9 +6,11 @@ import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -316,15 +318,27 @@ fun HomeScreen(
             }
         }
 
-        // App Monogram Title
-        Text(
-            text = "AUXPARTY ROOMS",
-            color = DemonicCrimson,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 2.sp,
+        // App Monogram Title with Official Logo
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(bottom = 18.dp)
-        )
+        ) {
+            Image(
+                painter = painterResource(id = com.nddfeon.demonic.R.drawable.auxparty_logo),
+                contentDescription = "AuxParty Logo",
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "AUXPARTY ROOMS",
+                color = DemonicCrimson,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 2.sp
+            )
+        }
 
         // Card 1: Create Room
         Box(

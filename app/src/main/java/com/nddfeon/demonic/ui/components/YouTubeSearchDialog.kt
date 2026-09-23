@@ -243,7 +243,7 @@ private fun SearchResultRow(
         AsyncImage(
             model = item.thumbnailUrl,
             contentDescription = null,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
             modifier = Modifier
                 .size(width = 80.dp, height = 50.dp)
                 .clip(RoundedCornerShape(8.dp))

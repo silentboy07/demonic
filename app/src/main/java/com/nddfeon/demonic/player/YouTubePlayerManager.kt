@@ -202,13 +202,17 @@ class YouTubePlayerManager @Inject constructor() {
                             p.setPlaybackQualityRange('$code', '$code');
                         }
                     }
-                    var ytp = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
-                    if (ytp) {
-                        if (typeof ytp.setPlaybackQualityRange === 'function') {
-                            ytp.setPlaybackQualityRange('$code', '$code');
-                        }
-                        if (typeof ytp.setPlaybackQuality === 'function') {
-                            ytp.setPlaybackQuality('$code');
+                    var ifr = document.querySelector('iframe');
+                    var doc = ifr ? (ifr.contentDocument || (ifr.contentWindow && ifr.contentWindow.document)) : document;
+                    if (doc) {
+                        var ytp = doc.getElementById('movie_player') || doc.querySelector('.html5-video-player');
+                        if (ytp) {
+                            if (typeof ytp.setPlaybackQualityRange === 'function') {
+                                ytp.setPlaybackQualityRange('$code', '$code');
+                            }
+                            if (typeof ytp.setPlaybackQuality === 'function') {
+                                ytp.setPlaybackQuality('$code');
+                            }
                         }
                     }
                     try {

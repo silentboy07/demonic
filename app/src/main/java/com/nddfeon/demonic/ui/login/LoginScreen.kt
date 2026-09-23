@@ -161,34 +161,17 @@ fun LoginScreen(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Demonic Emblem Disc Icon
-                Box(
+                // AuxParty Official Logo Icon
+                Image(
+                    painter = painterResource(id = com.nddfeon.demonic.R.drawable.auxparty_logo),
+                    contentDescription = "AuxParty Logo",
                     modifier = Modifier
-                        .size(96.dp)
-                        .scale(auraScale.coerceIn(0.95f, 1.05f))
-                        .shadow(24.dp, CircleShape, spotColor = DemonicCrimson)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.sweepGradient(
-                                listOf(
-                                    DemonicCrimson,
-                                    DemonicViolet,
-                                    DemonicCrimsonDark,
-                                    DemonicCrimson
-                                )
-                            )
-                        )
-                        .border(2.dp, DemonicCrimsonLight.copy(alpha = 0.6f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(DemonicBackground)
-                            .border(1.dp, DemonicCrimson, CircleShape)
-                    )
-                }
+                        .size(105.dp)
+                        .scale(auraScale.coerceIn(0.96f, 1.04f))
+                        .shadow(24.dp, RoundedCornerShape(24.dp), spotColor = DemonicCrimson)
+                        .clip(RoundedCornerShape(24.dp))
+                        .border(1.5.dp, DemonicCrimson.copy(alpha = 0.7f), RoundedCornerShape(24.dp))
+                )
 
                 Spacer(modifier = Modifier.height(28.dp))
 

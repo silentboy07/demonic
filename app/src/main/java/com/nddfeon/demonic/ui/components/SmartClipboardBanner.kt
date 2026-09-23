@@ -138,7 +138,7 @@ fun SmartClipboardBanner(
                 AsyncImage(
                     model = thumbnailUrl,
                     contentDescription = "Video Thumbnail",
-                    contentScale = ContentScale.Crop,
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .size(width = 68.dp, height = 44.dp)
                         .clip(RoundedCornerShape(8.dp))

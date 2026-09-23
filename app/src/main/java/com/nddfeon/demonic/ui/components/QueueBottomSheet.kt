@@ -143,10 +143,11 @@ fun QueueBottomSheet(
                     AsyncImage(
                         model = "https://img.youtube.com/vi/$currentVideoId/hqdefault.jpg",
                         contentDescription = null,
-                        contentScale = ContentScale.Crop,
+                        contentScale = ContentScale.Fit,
                         modifier = Modifier
                             .size(width = 72.dp, height = 45.dp)
                             .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -258,7 +259,7 @@ private fun QueueItemRow(
         AsyncImage(
             model = item.thumbnailUrl.ifEmpty { "https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg" },
             contentDescription = null,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
             modifier = Modifier
                 .size(width = 68.dp, height = 44.dp)
                 .clip(RoundedCornerShape(8.dp))

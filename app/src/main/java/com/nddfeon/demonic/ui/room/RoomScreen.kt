@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.MoreVert
@@ -218,6 +219,7 @@ fun RoomScreen(
     val sleepTimerMinutes by viewModel.sleepTimerMinutes.collectAsState()
     var showQualityDialog by remember { mutableStateOf(false) }
     val currentQuality by viewModel.currentQuality.collectAsState()
+    var isVerticalFullRatio by remember { mutableStateOf(false) }
     var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
 
     val activity = context as? android.app.Activity
@@ -713,10 +715,22 @@ fun RoomScreen(
             // Visual Centerpiece: 16:9 YouTube Player or Vinyl Disc or Compact Mini-Bar or Watch Party Fullscreen
             val isCompact = (playerDisplayMode == PlayerDisplayMode.COMPACT)
             Box(
-                modifier = if (isInPip || isFullscreen) Modifier.fillMaxSize() else Modifier
-                    .fillMaxWidth()
-                    .height(if (isCompact) 56.dp else 190.dp)
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = if (isInPip || isFullscreen) {
+                    Modifier.fillMaxSize()
+                } else {
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .then(
+                            if (isCompact) {
+                                Modifier.height(56.dp)
+                            } else if (isVerticalFullRatio) {
+                                Modifier.height(340.dp)
+                            } else {
+                                Modifier.aspectRatio(16f / 9f)
+                            }
+                        )
+                },
                 contentAlignment = Alignment.Center
             ) {
                 val hasVideo = !uiState.room?.videoId.isNullOrEmpty()
@@ -777,7 +791,7 @@ fun RoomScreen(
                                 initialize(viewModel.playerManager.listener, false, options)
                                 post { configureWebView(this) }
 
-                                // Multi-layer Ad killer
+                                // Multi-layer Ad killer & Full-Ratio Video Scaler
                                 fun injectAdKiller() {
                                     fun findWebView(v: android.view.View): android.webkit.WebView? {
                                         if (v is android.webkit.WebView) return v
@@ -797,7 +811,7 @@ fun RoomScreen(
                                                 window._demonicAdKillerInstalled = true;
                                                 try {
                                                     var style = document.createElement('style');
-                                                    style.innerHTML = '.ytp-ad-overlay-container, .ytp-ad-message-container, .ytp-ad-action-interstitial, .companion-ad-container, .ytp-ad-preview-container, .ad-created, .ytp-ad-module, .ytp-ad-image-overlay, .ytp-ad-text-overlay, .video-ads, .ytp-ad-player-overlay { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+                                                    style.innerHTML = '.ytp-ad-overlay-container, .ytp-ad-message-container, .ytp-ad-action-interstitial, .companion-ad-container, .ytp-ad-preview-container, .ad-created, .ytp-ad-module, .ytp-ad-image-overlay, .ytp-ad-text-overlay, .video-ads, .ytp-ad-player-overlay { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; } video { object-fit: contain !important; width: 100% !important; height: 100% !important; } .html5-video-player, #movie_player, .html5-main-video { object-fit: contain !important; width: 100% !important; height: 100% !important; top: 0 !important; left: 0 !important; }';
                                                     document.head.appendChild(style);
                                                 } catch(e) {}
                                                 setInterval(function() {
@@ -837,13 +851,13 @@ fun RoomScreen(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Video Quality Pill & Watch Party Cinema Badge Row on Video Player
+                    // Video Quality Pill & Watch Party Cinema Badge Row on Video Player (Placed at TOP so bottom controls & settings gear are never blocked!)
                     if (!isInPip && !isFullscreen && playerDisplayMode == PlayerDisplayMode.VIDEO && hasVideo) {
-                        // Quick 1-Tap "Hide Video (Chat Mode) 💬" Pill at Top
+                        // Quick 1-Tap "Hide Video (Chat Mode) 💬" Pill at Top Start
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopStart)
-                                .padding(10.dp)
+                                .padding(8.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color.Black.copy(alpha = 0.8f))
                                 .border(1.dp, currentTheme.borderColor.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
@@ -851,56 +865,86 @@ fun RoomScreen(
                                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                     playerDisplayMode = PlayerDisplayMode.COMPACT
                                 }
-                                .padding(horizontal = 9.dp, vertical = 5.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Default.GraphicEq,
                                     contentDescription = "Chat Mode",
                                     tint = currentTheme.primaryColor,
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(12.dp)
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
                                 Text(
                                     text = "Hide Video 💬",
                                     color = Color.White,
-                                    fontSize = 10.5.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                         }
 
+                        // Top End Row: Aspect Ratio Toggle, Quality Pill, and Cinema Party
                         Row(
                             modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Aspect Ratio Toggle: 16:9 Standard vs 9:16 Full Reel
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.Black.copy(alpha = 0.8f))
+                                    .border(1.dp, currentTheme.borderColor.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                        isVerticalFullRatio = !isVerticalFullRatio
+                                    }
+                                    .padding(horizontal = 7.dp, vertical = 4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.AspectRatio,
+                                        contentDescription = "Ratio",
+                                        tint = currentTheme.primaryColor,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = if (isVerticalFullRatio) "9:16 Reel" else "16:9 Wide",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
                             // Quality selector pill
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.Black.copy(alpha = 0.75f))
-                                    .border(1.dp, DemonicBorder.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                    .background(Color.Black.copy(alpha = 0.8f))
+                                    .border(1.dp, DemonicBorder.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
                                     .clickable {
                                         view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                         showQualityDialog = true
                                     }
-                                    .padding(horizontal = 8.dp, vertical = 5.dp)
+                                    .padding(horizontal = 7.dp, vertical = 4.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         imageVector = Icons.Default.HighQuality,
                                         contentDescription = "Video Quality",
                                         tint = DemonicCrimson,
-                                        modifier = Modifier.size(14.dp)
+                                        modifier = Modifier.size(12.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
                                     Text(
                                         text = currentQuality.badge,
                                         color = Color.White,
-                                        fontSize = 10.5.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -910,26 +954,26 @@ fun RoomScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.Black.copy(alpha = 0.75f))
-                                    .border(1.dp, currentTheme.primaryColor.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                    .background(Color.Black.copy(alpha = 0.8f))
+                                    .border(1.dp, currentTheme.primaryColor.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
                                     .clickable {
                                         view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                                         isFullscreen = true
                                     }
-                                    .padding(horizontal = 9.dp, vertical = 5.dp)
+                                    .padding(horizontal = 7.dp, vertical = 4.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         imageVector = Icons.Default.Fullscreen,
                                         contentDescription = "Watch Party",
                                         tint = currentTheme.primaryColor,
-                                        modifier = Modifier.size(15.dp)
+                                        modifier = Modifier.size(13.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = "Cinema Party 🎬",
+                                        text = "Cinema 🎬",
                                         color = Color.White,
-                                        fontSize = 10.5.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -1005,8 +1049,8 @@ fun RoomScreen(
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(DemonicSurfaceVariant),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                .background(Color.Black),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(
@@ -1312,7 +1356,7 @@ fun RoomScreen(
                     )
                 }
 
-                // Clean Casual Quick Action Bar: Search & Add Music | Queue | FX Studio
+                // Clean Casual Quick Action Bar: Search & Add Music | Queue (Spacious & uncluttered)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1320,10 +1364,10 @@ fun RoomScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 1. Demonic Music Hub & Search Button (Flex weight 1.3f)
+                    // 1. Demonic Music Hub & Search Button (Flex weight 1.5f)
                     Row(
                         modifier = Modifier
-                            .weight(1.3f)
+                            .weight(1.5f)
                             .height(38.dp)
                             .clip(RoundedCornerShape(11.dp))
                             .background(
@@ -1356,10 +1400,10 @@ fun RoomScreen(
                         )
                     }
 
-                    // 2. Queue Pill with badge (Flex weight 0.95f)
+                    // 2. Queue Pill with badge (Flex weight 1.0f)
                     Box(
                         modifier = Modifier
-                            .weight(0.95f)
+                            .weight(1.0f)
                             .height(38.dp)
                             .clip(RoundedCornerShape(11.dp))
                             .background(
@@ -1394,55 +1438,24 @@ fun RoomScreen(
                             )
                         }
                     }
-
-                    // 3. Themes & FX Studio Button (Flex weight 0.95f)
-                    Box(
-                        modifier = Modifier
-                            .weight(0.95f)
-                            .height(38.dp)
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(currentTheme.primaryColor.copy(alpha = 0.22f), currentTheme.secondaryColor.copy(alpha = 0.18f))
-                                )
-                            )
-                            .border(1.dp, currentTheme.primaryColor.copy(alpha = 0.8f), RoundedCornerShape(11.dp))
-                            .clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                                showFxStudioSheet = true
-                            }
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Palette,
-                                contentDescription = "FX Studio",
-                                tint = currentTheme.primaryColor,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "FX Studio",
-                                color = currentTheme.primaryColor,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
 
-                // Live Member Avatars Row (Hidden in Compact mode for maximum chat space)
+                // Live Member Avatars Row with FX Studio Button (Hidden in Compact mode for maximum chat space)
                 if (playerDisplayMode != PlayerDisplayMode.COMPACT) {
                     MemberAvatarRow(
                         members = uiState.members,
                         djId = uiState.room?.djId,
                         isHostUser = uiState.isHost,
+                        theme = currentTheme,
                         onPassAux = { targetUid ->
                             viewModel.passTheAux(targetUid)
                         },
                         onOpenMembersSheet = {
                             showMembersSheet = true
+                        },
+                        onOpenFxStudio = {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                            showFxStudioSheet = true
                         },
                         modifier = Modifier.padding(vertical = 3.dp)
                     )

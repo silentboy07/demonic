@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.ui.components
+package com.nddfeon.demonic.ui.components
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.background
@@ -222,6 +222,25 @@ fun YouTubeQualityDialog(
                             }
                         }
                     }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Helpful tip banner
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.04f))
+                        .border(1.dp, DemonicBorder.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "💡 Tip: YouTube automatically adjusts quality based on network speed. You can also tap the ⚙️ gear icon directly on the video player anytime to lock 1080p / 720p.",
+                        color = DemonicTextMuted,
+                        fontSize = 10.5.sp,
+                        lineHeight = 14.sp
+                    )
                 }
             }
         }

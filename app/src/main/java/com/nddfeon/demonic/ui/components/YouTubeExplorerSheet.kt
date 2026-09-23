@@ -813,7 +813,7 @@ private fun MusicHubSongCard(
             AsyncImage(
                 model = song.thumbnailUrl,
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize()
             )
 
