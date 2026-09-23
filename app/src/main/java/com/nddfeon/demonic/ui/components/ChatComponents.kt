@@ -949,11 +949,37 @@ fun ChatInputBar(
                 }
             }
 
+            // Quick 1-Tap Reaction Emojis Row
+            val quickEmojis = remember { listOf("🔥", "❤️", "👑", "💀", "⚡", "🚀", "😂", "🎧", "✨") }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 3.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                quickEmojis.forEach { emoji ->
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(theme.surfaceVariantColor.copy(alpha = 0.5f))
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                onValueChange(value + emoji)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = emoji, fontSize = 15.sp)
+                    }
+                }
+            }
+
             // Input & Action Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Text Input Box

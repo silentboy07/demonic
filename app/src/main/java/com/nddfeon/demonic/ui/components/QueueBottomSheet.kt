@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -107,12 +108,14 @@ fun QueueBottomSheet(
                 }
 
                 DemonicButton(
-                    text = "Add Song",
+                    text = "+ Add Song",
                     onClick = {
                         onDismiss()
                         onOpenSearch()
                     },
-                    modifier = Modifier.height(36.dp)
+                    modifier = Modifier.height(36.dp),
+                    fontSize = 12.5.sp,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)
                 )
             }
 

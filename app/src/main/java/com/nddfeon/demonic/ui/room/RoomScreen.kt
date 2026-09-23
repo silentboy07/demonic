@@ -715,7 +715,7 @@ fun RoomScreen(
             Box(
                 modifier = if (isInPip || isFullscreen) Modifier.fillMaxSize() else Modifier
                     .fillMaxWidth()
-                    .height(if (isCompact) 64.dp else 200.dp)
+                    .height(if (isCompact) 56.dp else 190.dp)
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -839,6 +839,37 @@ fun RoomScreen(
 
                     // Video Quality Pill & Watch Party Cinema Badge Row on Video Player
                     if (!isInPip && !isFullscreen && playerDisplayMode == PlayerDisplayMode.VIDEO && hasVideo) {
+                        // Quick 1-Tap "Hide Video (Chat Mode) 💬" Pill at Top
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(10.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.Black.copy(alpha = 0.8f))
+                                .border(1.dp, currentTheme.borderColor.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    playerDisplayMode = PlayerDisplayMode.COMPACT
+                                }
+                                .padding(horizontal = 9.dp, vertical = 5.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.GraphicEq,
+                                    contentDescription = "Chat Mode",
+                                    tint = currentTheme.primaryColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Hide Video 💬",
+                                    color = Color.White,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
                         Row(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
@@ -996,19 +1027,51 @@ fun RoomScreen(
                                 isPlaying = (uiState.room?.isPlaying == true)
                             )
                         }
+
+                        // Show Video 🎬 Expand Pill
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(currentTheme.primaryColor.copy(alpha = 0.15f))
+                                .border(1.dp, currentTheme.primaryColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    playerDisplayMode = PlayerDisplayMode.VIDEO
+                                }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Videocam,
+                                    contentDescription = "Show Video",
+                                    tint = currentTheme.primaryColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "Video 🎬",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
                         if (uiState.canControlPlayback) {
                             IconButton(
                                 onClick = {
                                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                     viewModel.togglePlayPause()
                                 },
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(34.dp)
                             ) {
                                 Icon(
                                     imageVector = if (uiState.room?.isPlaying == true) Icons.Default.Pause else Icons.Default.PlayArrow,
                                     contentDescription = "Play/Pause",
                                     tint = currentTheme.primaryColor,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
                             IconButton(
@@ -1016,13 +1079,13 @@ fun RoomScreen(
                                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                     viewModel.skipToNextTrack()
                                 },
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(34.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.SkipNext,
                                     contentDescription = "Next Track",
                                     tint = DemonicTextSecondary,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -1193,7 +1256,7 @@ fun RoomScreen(
                             onClick = { playerDisplayMode = PlayerDisplayMode.VINYL }
                         )
                         PlayerModeChip(
-                            label = "Chat 💬",
+                            label = "Chat & Audio 💬",
                             selected = (playerDisplayMode == PlayerDisplayMode.COMPACT),
                             theme = currentTheme,
                             onClick = { playerDisplayMode = PlayerDisplayMode.COMPACT }

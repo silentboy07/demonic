@@ -1,4 +1,4 @@
-﻿package com.nddfeon.demonic.ui.components
+package com.nddfeon.demonic.ui.components
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.animateFloatAsState
@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import com.nddfeon.demonic.ui.theme.DemonicCrimson
 import com.nddfeon.demonic.ui.theme.DemonicCrimsonDark
 import com.nddfeon.demonic.ui.theme.DemonicCrimsonLight
@@ -56,7 +57,9 @@ fun DemonicButton(
     enabled: Boolean = true,
     isLoading: Boolean = false,
     variant: DemonicButtonVariant = DemonicButtonVariant.PRIMARY,
-    leadingIcon: (@Composable () -> Unit)? = null
+    leadingIcon: (@Composable () -> Unit)? = null,
+    fontSize: TextUnit = 14.sp,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 18.dp, vertical = 10.dp)
 ) {
     val view = LocalView.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -119,12 +122,12 @@ fun DemonicButton(
                 view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                 onClick()
             }
-            .padding(horizontal = 24.dp, vertical = 14.dp),
+            .padding(contentPadding),
         contentAlignment = Alignment.Center
     ) {
         if (isLoading) {
             CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(18.dp),
                 color = DemonicTextPrimary,
                 strokeWidth = 2.dp
             )
@@ -134,13 +137,13 @@ fun DemonicButton(
             ) {
                 leadingIcon?.let {
                     it()
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                 }
                 Text(
                     text = text,
                     color = if (enabled) DemonicTextPrimary else DemonicTextMuted,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = fontSize,
+                    fontWeight = FontWeight.Bold,
                     letterSpacing = 0.4.sp
                 )
             }

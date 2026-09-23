@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -29,9 +30,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,7 +46,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +57,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -78,6 +82,18 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+enum class MusicHubTab {
+    SEARCH,
+    PLAYLIST
+}
+
+data class CuratedPlaylistPreset(
+    val title: String,
+    val subtitle: String,
+    val iconEmoji: String,
+    val playlistUrl: String
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun YouTubeExplorerSheet(
@@ -95,7 +111,11 @@ fun YouTubeExplorerSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val view = LocalView.current
+    val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+
+    // Active Tab (SEARCH is default and cleanly separated from PLAYLIST)
+    var selectedTab by remember { mutableStateOf(MusicHubTab.SEARCH) }
 
     // Importer state
     var linkInput by remember { mutableStateOf("") }
@@ -122,10 +142,39 @@ fun YouTubeExplorerSheet(
                 return@launch
             }
             isSearching = true
-            delay(400L) // Debounce typing
+            delay(350L) // Fast debounce
             songsList = searchManager.search(q)
             isSearching = false
         }
+    }
+
+    val curatedPresets = remember {
+        listOf(
+            CuratedPlaylistPreset(
+                title = "Bollywood Party Hits",
+                subtitle = "Top party bangers & dance anthems",
+                iconEmoji = "💃",
+                playlistUrl = "https://www.youtube.com/playlist?list=PLc61Jq7O4fV_c5J1Y3mI-i56gG6wK-tQG"
+            ),
+            CuratedPlaylistPreset(
+                title = "Aggressive Phonk & Drift",
+                subtitle = "Heavy bass, gym hype & nighttime drift",
+                iconEmoji = "⚡",
+                playlistUrl = "https://www.youtube.com/playlist?list=PLrAl6s_WvL_J9sYvT9m74H6xK8vB6W-4d"
+            ),
+            CuratedPlaylistPreset(
+                title = "Lo-Fi Hip Hop Chill Beats",
+                subtitle = "Smooth study, relax & late-night vibes",
+                iconEmoji = "🎧",
+                playlistUrl = "https://www.youtube.com/playlist?list=PLofht4PTcKYnaH8w5gkDC2m5042426315"
+            ),
+            CuratedPlaylistPreset(
+                title = "Punjabi Hype Top 50",
+                subtitle = "Sidhu Moose Wala, Karan Aujla, Diljit",
+                iconEmoji = "👑",
+                playlistUrl = "https://www.youtube.com/playlist?list=PLzcxunOM5WFLNcf4qgR9r8jGg7d43B-e1"
+            )
+        )
     }
 
     ModalBottomSheet(
@@ -135,8 +184,8 @@ fun YouTubeExplorerSheet(
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(vertical = 10.dp)
-                    .width(40.dp)
+                    .padding(vertical = 8.dp)
+                    .width(42.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(DemonicBorder)
@@ -156,7 +205,7 @@ fun YouTubeExplorerSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp),
+                    .padding(bottom = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -210,253 +259,526 @@ fun YouTubeExplorerSheet(
                 }
             }
 
-            // Playlist / Link Auto-Queue Importer Section
-            Box(
+            // Top Segmented Switcher (SEARCH vs PLAYLIST clearly separated)
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(DemonicSurface)
-                    .border(1.dp, DemonicViolet.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-                    .padding(12.dp)
+                    .border(1.dp, DemonicBorder, RoundedCornerShape(12.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Link,
-                                contentDescription = null,
-                                tint = DemonicViolet,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "IMPORT PLAYLIST / VIDEO LINK",
-                                color = DemonicViolet,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-
-                        if (isImporting) {
-                            CircularProgressIndicator(
-                                color = DemonicViolet,
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        DemonicTextField(
-                            value = linkInput,
-                            onValueChange = {
-                                linkInput = it
-                                importFeedbackMessage = null
-                            },
-                            placeholder = "Paste YouTube playlist URL or song link...",
-                            modifier = Modifier.weight(1f)
+                // Tab 1: Search Songs
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(
+                            if (selectedTab == MusicHubTab.SEARCH) {
+                                Brush.horizontalGradient(listOf(DemonicCrimson, DemonicCrimsonDark))
+                            } else {
+                                Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
+                            }
                         )
+                        .clickable {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            selectedTab = MusicHubTab.SEARCH
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = if (selectedTab == MusicHubTab.SEARCH) Color.White else DemonicTextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "SEARCH SONGS",
+                            color = if (selectedTab == MusicHubTab.SEARCH) Color.White else DemonicTextMuted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
 
-                        Spacer(modifier = Modifier.width(8.dp))
+                // Tab 2: Import Playlist / Link
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(
+                            if (selectedTab == MusicHubTab.PLAYLIST) {
+                                Brush.horizontalGradient(listOf(DemonicViolet, Color(0xFF6B21A8)))
+                            } else {
+                                Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
+                            }
+                        )
+                        .clickable {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            selectedTab = MusicHubTab.PLAYLIST
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Link,
+                            contentDescription = null,
+                            tint = if (selectedTab == MusicHubTab.PLAYLIST) Color.White else DemonicTextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "PLAYLIST & LINKS",
+                            color = if (selectedTab == MusicHubTab.PLAYLIST) Color.White else DemonicTextMuted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
+            }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // TAB CONTENT: SEARCH MODE
+            if (selectedTab == MusicHubTab.SEARCH) {
+                // Search Input Bar right at the TOP
+                DemonicTextField(
+                    value = searchQuery,
+                    onValueChange = {
+                        searchQuery = it
+                        triggerSearch(it)
+                    },
+                    placeholder = "Search songs, artists, movies, phonk...",
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = DemonicCrimson,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = {
+                                    searchQuery = ""
+                                    songsList = searchManager.getCategorySongs(selectedCategory)
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Clear",
+                                    tint = DemonicTextMuted,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Instant Vibe Pills Row
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(YouTubeSearchManager.CATEGORIES) { category ->
+                        val isSelected = (selectedCategory == category && searchQuery.isEmpty())
                         Box(
                             modifier = Modifier
-                                .height(46.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(
-                                    if (linkInput.isNotBlank() && !isImporting) {
-                                        Brush.horizontalGradient(listOf(DemonicCrimson, DemonicViolet))
+                                    if (isSelected) {
+                                        Brush.horizontalGradient(listOf(DemonicCrimson, DemonicCrimsonDark))
                                     } else {
-                                        Brush.horizontalGradient(listOf(DemonicSurfaceVariant, DemonicSurfaceVariant))
+                                        Brush.horizontalGradient(listOf(DemonicSurface, DemonicSurface))
                                     }
                                 )
-                                .clickable(enabled = linkInput.isNotBlank() && !isImporting) {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                    isImporting = true
-                                    importFeedbackMessage = null
-                                    isImportError = false
-
-                                    onImportPlaylistOrLink(
-                                        linkInput,
-                                        { progress ->
-                                            importStatus = progress
-                                        },
-                                        { count, msg ->
-                                            isImporting = false
-                                            importStatus = null
-                                            importFeedbackMessage = msg
-                                            isImportError = false
-                                            linkInput = ""
-                                        },
-                                        { err ->
-                                            isImporting = false
-                                            importStatus = null
-                                            importFeedbackMessage = err
-                                            isImportError = true
-                                        }
-                                    )
+                                .border(
+                                    1.dp,
+                                    if (isSelected) DemonicCrimson else DemonicSurfaceVariant,
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    selectedCategory = category
+                                    searchQuery = ""
+                                    songsList = searchManager.getCategorySongs(category)
                                 }
-                                .padding(horizontal = 14.dp),
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "IMPORT",
-                                color = if (linkInput.isNotBlank() && !isImporting) Color.White else DemonicTextMuted,
+                                text = category,
+                                color = if (isSelected) Color.White else DemonicTextSecondary,
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                             )
                         }
                     }
-
-                    // Status / Feedback message
-                    AnimatedVisibility(visible = importStatus != null || importFeedbackMessage != null) {
-                        Column(modifier = Modifier.padding(top = 6.dp)) {
-                            if (importStatus != null) {
-                                Text(
-                                    text = "⏳ $importStatus",
-                                    color = DemonicTextSecondary,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            if (importFeedbackMessage != null) {
-                                Text(
-                                    text = if (isImportError) "⚠️ $importFeedbackMessage" else "✅ $importFeedbackMessage",
-                                    color = if (isImportError) DemonicErrorRed else DemonicSyncTeal,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-            // Zero-Search Quick Pick Categories ("Bina search kiye gaane chalayein")
-            Text(
-                text = "INSTANT PICKS (NO SEARCH NEEDED)",
-                color = DemonicTextMuted,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
-
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(YouTubeSearchManager.CATEGORIES) { category ->
-                    val isSelected = (selectedCategory == category && searchQuery.isEmpty())
+                // Songs Feed List
+                if (isSearching) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                if (isSelected) {
-                                    Brush.horizontalGradient(listOf(DemonicCrimson, DemonicCrimsonDark))
-                                } else {
-                                    Brush.horizontalGradient(listOf(DemonicSurface, DemonicSurface))
-                                }
-                            )
-                            .border(
-                                1.dp,
-                                if (isSelected) DemonicCrimson else DemonicSurfaceVariant,
-                                RoundedCornerShape(10.dp)
-                            )
-                            .clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                selectedCategory = category
-                                searchQuery = ""
-                                songsList = searchManager.getCategorySongs(category)
-                            }
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                            .fillMaxWidth()
+                            .weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = category,
-                            color = if (isSelected) Color.White else DemonicTextSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = DemonicCrimson, modifier = Modifier.size(36.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Searching YouTube tracks...",
+                                color = DemonicTextMuted,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                } else if (songsList.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "🎵", fontSize = 36.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "No songs found for \"$searchQuery\"",
+                                color = DemonicTextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Try searching by song name, singer, or pick a vibe above",
+                                color = DemonicTextMuted,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(songsList, key = { it.videoId }) { song ->
+                            val isQueuedJustNow = (queuedFeedbackVideoId == song.videoId)
+
+                            MusicHubSongCard(
+                                song = song,
+                                canControlPlayback = canControlPlayback,
+                                isQueuedFeedback = isQueuedJustNow,
+                                onPlayNow = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    onPlayNow(song.videoId, song.title)
+                                    onDismiss()
+                                },
+                                onAddToQueue = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    onAddToQueue(song.videoId, song.title)
+                                    queuedFeedbackVideoId = song.videoId
+                                    scope.launch {
+                                        delay(2000)
+                                        if (queuedFeedbackVideoId == song.videoId) {
+                                            queuedFeedbackVideoId = null
+                                        }
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Manual Search Input Bar
-            DemonicTextField(
-                value = searchQuery,
-                onValueChange = {
-                    searchQuery = it
-                    triggerSearch(it)
-                },
-                placeholder = "Or search specific song, singer, movie...",
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = DemonicTextMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Songs Feed List
-            if (isSearching) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = DemonicCrimson, modifier = Modifier.size(36.dp))
-                }
             } else {
+                // TAB CONTENT: PLAYLIST & LINKS MODE
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    items(songsList, key = { it.videoId }) { song ->
-                        val isQueuedJustNow = (queuedFeedbackVideoId == song.videoId)
+                    // 1. YouTube Link / Playlist Input Card
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(DemonicSurface)
+                                .border(1.dp, DemonicViolet.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                                .padding(14.dp)
+                        ) {
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Link,
+                                            contentDescription = null,
+                                            tint = DemonicViolet,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "IMPORT YOUTUBE PLAYLIST / LINK",
+                                            color = DemonicViolet,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
 
-                        MusicHubSongCard(
-                            song = song,
-                            canControlPlayback = canControlPlayback,
-                            isQueuedFeedback = isQueuedJustNow,
-                            onPlayNow = {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                onPlayNow(song.videoId, song.title)
-                                onDismiss()
-                            },
-                            onAddToQueue = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                onAddToQueue(song.videoId, song.title)
-                                queuedFeedbackVideoId = song.videoId
-                                scope.launch {
-                                    delay(2000)
-                                    if (queuedFeedbackVideoId == song.videoId) {
-                                        queuedFeedbackVideoId = null
+                                    if (isImporting) {
+                                        CircularProgressIndicator(
+                                            color = DemonicViolet,
+                                            strokeWidth = 2.dp,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Paste any YouTube playlist URL or song link. All tracks will be queued for continuous party playback!",
+                                    color = DemonicTextMuted,
+                                    fontSize = 11.5.sp,
+                                    lineHeight = 16.sp
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                DemonicTextField(
+                                    value = linkInput,
+                                    onValueChange = {
+                                        linkInput = it
+                                        importFeedbackMessage = null
+                                    },
+                                    placeholder = "Paste YouTube playlist link here...",
+                                    trailingIcon = {
+                                        // 1-Tap Paste Clipboard Button
+                                        IconButton(
+                                            onClick = {
+                                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                                val clipText = clipboardManager.getText()?.text ?: ""
+                                                if (clipText.isNotBlank()) {
+                                                    linkInput = clipText.trim()
+                                                }
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ContentPaste,
+                                                contentDescription = "Paste",
+                                                tint = DemonicViolet,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Glowing Import Button
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            if (linkInput.isNotBlank() && !isImporting) {
+                                                Brush.horizontalGradient(listOf(DemonicCrimson, DemonicViolet))
+                                            } else {
+                                                Brush.horizontalGradient(listOf(DemonicSurfaceVariant, DemonicSurfaceVariant))
+                                            }
+                                        )
+                                        .clickable(enabled = linkInput.isNotBlank() && !isImporting) {
+                                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                            isImporting = true
+                                            importFeedbackMessage = null
+                                            isImportError = false
+
+                                            onImportPlaylistOrLink(
+                                                linkInput,
+                                                { progress ->
+                                                    importStatus = progress
+                                                },
+                                                { count, msg ->
+                                                    isImporting = false
+                                                    importStatus = null
+                                                    importFeedbackMessage = msg
+                                                    isImportError = false
+                                                    linkInput = ""
+                                                },
+                                                { err ->
+                                                    isImporting = false
+                                                    importStatus = null
+                                                    importFeedbackMessage = err
+                                                    isImportError = true
+                                                }
+                                            )
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+                                            contentDescription = null,
+                                            tint = if (linkInput.isNotBlank() && !isImporting) Color.White else DemonicTextMuted,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (isImporting) "IMPORTING TRACKS..." else "IMPORT PLAYLIST TO QUEUE",
+                                            color = if (linkInput.isNotBlank() && !isImporting) Color.White else DemonicTextMuted,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
+                                }
+
+                                // Status / Feedback message
+                                AnimatedVisibility(visible = importStatus != null || importFeedbackMessage != null) {
+                                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                                        if (importStatus != null) {
+                                            Text(
+                                                text = "⏳ $importStatus",
+                                                color = DemonicTextSecondary,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                        if (importFeedbackMessage != null) {
+                                            Text(
+                                                text = if (isImportError) "⚠️ $importFeedbackMessage" else "✅ $importFeedbackMessage",
+                                                color = if (isImportError) DemonicErrorRed else DemonicSyncTeal,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        )
+                        }
+                    }
+
+                    // 2. Curated Party Playlists Section (1-Tap Import)
+                    item {
+                        Column {
+                            Text(
+                                text = "READY-MADE PARTY PLAYLISTS (1-TAP AUTO-QUEUE)",
+                                color = DemonicTextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                    }
+
+                    items(curatedPresets) { preset ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(DemonicSurface)
+                                .border(1.dp, DemonicBorder, RoundedCornerShape(14.dp))
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(DemonicSurfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = preset.iconEmoji, fontSize = 20.sp)
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column {
+                                    Text(
+                                        text = preset.title,
+                                        color = DemonicTextPrimary,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = preset.subtitle,
+                                        color = DemonicTextMuted,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .height(34.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(DemonicViolet.copy(alpha = 0.2f))
+                                    .border(1.dp, DemonicViolet.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                    .clickable(enabled = !isImporting) {
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                        isImporting = true
+                                        importFeedbackMessage = null
+                                        isImportError = false
+
+                                        onImportPlaylistOrLink(
+                                            preset.playlistUrl,
+                                            { progress -> importStatus = progress },
+                                            { count, msg ->
+                                                isImporting = false
+                                                importStatus = null
+                                                importFeedbackMessage = msg
+                                                isImportError = false
+                                            },
+                                            { err ->
+                                                isImporting = false
+                                                importStatus = null
+                                                importFeedbackMessage = err
+                                                isImportError = true
+                                            }
+                                        )
+                                    }
+                                    .padding(horizontal = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "LOAD",
+                                    color = DemonicViolet,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -579,13 +901,13 @@ private fun MusicHubSongCard(
                     .height(34.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (isQueuedFeedback) DemonicSyncTeal.copy(alpha = 0.2f) else DemonicViolet.copy(alpha = 0.15f))
-                .border(
-                    1.dp,
-                    if (isQueuedFeedback) DemonicSyncTeal else DemonicViolet.copy(alpha = 0.5f),
-                    RoundedCornerShape(8.dp)
-                )
-                .clickable(enabled = !isQueuedFeedback) { onAddToQueue() }
-                .padding(horizontal = 8.dp),
+                    .border(
+                        1.dp,
+                        if (isQueuedFeedback) DemonicSyncTeal else DemonicViolet.copy(alpha = 0.5f),
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable(enabled = !isQueuedFeedback) { onAddToQueue() }
+                    .padding(horizontal = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

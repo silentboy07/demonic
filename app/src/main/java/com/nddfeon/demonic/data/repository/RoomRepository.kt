@@ -121,6 +121,30 @@ class FirebaseRoomRepository @Inject constructor(
                 override fun onCancelled(error: DatabaseError) {}
             })
         } catch (_: Exception) {}
+        purgeExpiredRooms()
+    }
+
+    private fun purgeExpiredRooms() {
+        scope.launch(Dispatchers.IO) {
+            try {
+                val cutoff = System.currentTimeMillis() - (24 * 60 * 60 * 1000L) // 24 Hours inactivity
+                val snapshot = database.getReference("rooms").get().await()
+                for (child in snapshot.children) {
+                    val updatedAt = child.child("updatedAt").getValue(Long::class.java) ?: 0L
+                    if (updatedAt > 0 && updatedAt < cutoff) {
+                        val code = child.key?.uppercase() ?: continue
+                        child.ref.removeValue()
+                        localRooms.remove(code)
+                        localMembers.remove(code)
+                        localMessages.remove(code)
+                        localQueues.remove(code)
+                        localTyping.remove(code)
+                        localReactions.remove(code)
+                    }
+                }
+                updatePublicRoomsList()
+            } catch (_: Exception) {}
+        }
     }
 
     override fun getServerNowMs(): Long {
@@ -159,6 +183,7 @@ class FirebaseRoomRepository @Inject constructor(
         localPublicRooms.value = list
     }
     override suspend fun createRoom(user: UserAccount, initialVideoId: String): Result<String> {
+        purgeExpiredRooms()
         var roomCode = ""
         var attempts = 0
         val maxAttempts = 10
@@ -268,13 +293,19 @@ class FirebaseRoomRepository @Inject constructor(
         try {
             val snapshot = database.getReference("rooms").child(upperCode).get().await()
             if (snapshot.exists()) {
+                val updatedAt = snapshot.child("updatedAt").getValue(Long::class.java) ?: now
+                if (updatedAt > 0 && (System.currentTimeMillis() - updatedAt) > 24 * 60 * 60 * 1000L) {
+                    scope.launch {
+                        try { database.getReference("rooms").child(upperCode).removeValue() } catch (_: Exception) {}
+                    }
+                    return Result.failure(Exception("Room $upperCode has expired after 24 hours of inactivity"))
+                }
                 val hostId = snapshot.child("hostId").getValue(String::class.java) ?: ""
                 val djId = snapshot.child("djId").getValue(String::class.java)
                 val videoId = snapshot.child("videoId").getValue(String::class.java) ?: "dQw4w9WgXcQ"
                 val state = snapshot.child("state").getValue(String::class.java) ?: "paused"
                 val position = snapshot.child("position").getValue(Double::class.java)
                     ?: (snapshot.child("position").getValue(Long::class.java)?.toDouble() ?: 0.0)
-                val updatedAt = snapshot.child("updatedAt").getValue(Long::class.java) ?: now
                 val videoTitle = snapshot.child("videoTitle").getValue(String::class.java) ?: ""
                 val isPublic = snapshot.child("isPublic").getValue(Boolean::class.java) ?: true
                 val theme = snapshot.child("theme").getValue(String::class.java) ?: "CYBER_NEON"
@@ -491,6 +522,7 @@ class FirebaseRoomRepository @Inject constructor(
 
         val firebaseFlow = callbackFlow {
             val messagesRef = database.getReference("rooms").child(upperCode).child("messages")
+            val messagesQuery = messagesRef.limitToLast(80)
             val listener = object : ChildEventListener {
                 override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
                     val id = snapshot.child("id").getValue(String::class.java) ?: snapshot.key ?: ""
@@ -524,10 +556,10 @@ class FirebaseRoomRepository @Inject constructor(
                 override fun onCancelled(error: DatabaseError) {}
             }
             try {
-                messagesRef.addChildEventListener(listener)
+                messagesQuery.addChildEventListener(listener)
             } catch (_: Exception) {}
             awaitClose {
-                try { messagesRef.removeEventListener(listener) } catch (_: Exception) {}
+                try { messagesQuery.removeEventListener(listener) } catch (_: Exception) {}
             }
         }
 
@@ -537,6 +569,7 @@ class FirebaseRoomRepository @Inject constructor(
     override fun observeDeletedMessageIds(roomCode: String): Flow<String> = callbackFlow {
         val upperCode = roomCode.trim().uppercase()
         val messagesRef = database.getReference("rooms").child(upperCode).child("messages")
+        val messagesQuery = messagesRef.limitToLast(80)
         val listener = object : ChildEventListener {
             override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {}
             override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
@@ -550,10 +583,10 @@ class FirebaseRoomRepository @Inject constructor(
             override fun onCancelled(error: DatabaseError) {}
         }
         try {
-            messagesRef.addChildEventListener(listener)
+            messagesQuery.addChildEventListener(listener)
         } catch (_: Exception) {}
         awaitClose {
-            try { messagesRef.removeEventListener(listener) } catch (_: Exception) {}
+            try { messagesQuery.removeEventListener(listener) } catch (_: Exception) {}
         }
     }
 
@@ -692,6 +725,13 @@ class FirebaseRoomRepository @Inject constructor(
                         val state = child.child("state").getValue(String::class.java) ?: "paused"
                         val position = child.child("position").getValue(Double::class.java) ?: 0.0
                         val updatedAt = child.child("updatedAt").getValue(Long::class.java) ?: 0L
+
+                        // Skip and purge dead rooms inactive for > 24 hours
+                        if (updatedAt > 0 && (System.currentTimeMillis() - updatedAt) > 24 * 60 * 60 * 1000L) {
+                            scope.launch { try { child.ref.removeValue() } catch (_: Exception) {} }
+                            continue
+                        }
+
                         val videoTitle = child.child("videoTitle").getValue(String::class.java) ?: "Demonic Room"
                         val memberCount = child.child("members").childrenCount.toInt().coerceAtLeast(1)
 
@@ -951,7 +991,10 @@ class FirebaseRoomRepository @Inject constructor(
 
         scope.launch {
             try {
-                val messagesRef = database.getReference("rooms").child(upperCode).child("messages")
+                val roomRef = database.getReference("rooms").child(upperCode)
+                roomRef.child("updatedAt").setValue(ServerValue.TIMESTAMP)
+
+                val messagesRef = roomRef.child("messages")
                 val msgRef = messagesRef.child(msgId)
                 val msgData = hashMapOf<String, Any>(
                     "id" to msgId,
@@ -966,6 +1009,19 @@ class FirebaseRoomRepository @Inject constructor(
                     "senderRole" to senderRole
                 )
                 msgRef.setValue(msgData).await()
+
+                // Auto-Cap cleanup: if messages exceed 100, prune oldest down to 80
+                val countSnapshot = messagesRef.get().await()
+                if (countSnapshot.childrenCount > 100) {
+                    val pruneCount = (countSnapshot.childrenCount - 80).toInt()
+                    var pruned = 0
+                    for (child in countSnapshot.children) {
+                        if (pruned < pruneCount) {
+                            child.ref.removeValue()
+                            pruned++
+                        } else break
+                    }
+                }
             } catch (_: Exception) {}
         }
 
