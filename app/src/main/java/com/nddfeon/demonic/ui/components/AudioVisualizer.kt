@@ -39,6 +39,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.GraphicEq
@@ -158,91 +172,198 @@ fun NowPlayingTrackBanner(
     title: String,
     isPlaying: Boolean,
     nextTrackTitle: String?,
+    hasPreviousTrack: Boolean = false,
     theme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
     modifier: Modifier = Modifier,
+    onSwipeLeft: () -> Unit = {},
+    onSwipeRight: () -> Unit = {},
     onClick: () -> Unit = {}
 ) {
-    Row(
+    val offsetX = remember { Animatable(0f) }
+    val coroutineScope = rememberCoroutineScope()
+    val view = LocalView.current
+    val swipeThresholdPx = with(LocalDensity.current) { 46.dp.toPx() }
+    val maxDragPx = with(LocalDensity.current) { 110.dp.toPx() }
+    var currentOffset by remember { mutableFloatStateOf(0f) }
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(
-                Brush.horizontalGradient(
-                    listOf(theme.surfaceVariantColor, theme.surfaceColor)
-                )
-            )
-            .border(1.dp, theme.borderColor, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .background(theme.surfaceColor.copy(alpha = 0.5f))
+            .border(1.dp, theme.borderColor.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
     ) {
-        Box(
+        // Background Actions Revealed on Swipe
+        Row(
             modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(
-                    if (isPlaying) theme.primaryColor.copy(alpha = 0.22f) else theme.surfaceColor
-                )
-                .border(1.dp, if (isPlaying) theme.primaryColor.copy(alpha = 0.5f) else Color.Transparent, CircleShape),
-            contentAlignment = Alignment.Center
+                .matchParentSize()
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Default.MusicNote else Icons.Default.GraphicEq,
-                contentDescription = null,
-                tint = if (isPlaying) theme.primaryColor else DemonicTextMuted,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.width(10.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = if (title.isNotEmpty()) title else "Demonic Live Stream",
-                color = DemonicTextPrimary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            if (!nextTrackTitle.isNullOrBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.SkipNext,
-                        contentDescription = null,
-                        tint = theme.secondaryColor,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text(
-                        text = "Next: " + nextTrackTitle,
-                        color = theme.secondaryColor,
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            } else {
+            // Left Side: Previous Track Hint (Shown when swiping right)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.alpha(if (currentOffset > 8f) ((currentOffset / swipeThresholdPx).coerceIn(0.2f, 1f)) else 0f)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FastRewind,
+                    contentDescription = null,
+                    tint = if (hasPreviousTrack) theme.secondaryColor else DemonicTextMuted,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = if (isPlaying) "Playing in Sync • 48kHz" else "Paused",
-                    color = DemonicTextMuted,
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Normal
+                    text = if (hasPreviousTrack) "PREV TRACK" else "NO HISTORY",
+                    color = if (hasPreviousTrack) theme.secondaryColor else DemonicTextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Right Side: Next Track Hint (Shown when swiping left)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.alpha(if (currentOffset < -8f) (((-currentOffset) / swipeThresholdPx).coerceIn(0.2f, 1f)) else 0f)
+            ) {
+                Text(
+                    text = if (!nextTrackTitle.isNullOrBlank()) "NEXT TRACK" else "QUEUE END",
+                    color = if (!nextTrackTitle.isNullOrBlank()) theme.primaryColor else DemonicTextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Default.SkipNext,
+                    contentDescription = null,
+                    tint = if (!nextTrackTitle.isNullOrBlank()) theme.primaryColor else DemonicTextMuted,
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
+        // Swipable Track Banner Card
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .draggable(
+                    orientation = Orientation.Horizontal,
+                    state = rememberDraggableState { delta ->
+                        coroutineScope.launch {
+                            currentOffset = (currentOffset + delta).coerceIn(-maxDragPx, maxDragPx)
+                            offsetX.snapTo(currentOffset)
+                        }
+                    },
+                    onDragStopped = {
+                        coroutineScope.launch {
+                            if (currentOffset < -swipeThresholdPx) {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                onSwipeLeft()
+                            } else if (currentOffset > swipeThresholdPx) {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                onSwipeRight()
+                            }
+                            currentOffset = 0f
+                            offsetX.animateTo(0f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    }
+                )
+                .clickable(onClick = onClick)
+                .clip(RoundedCornerShape(14.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(theme.surfaceVariantColor, theme.surfaceColor)
+                    )
+                )
+                .border(1.dp, theme.borderColor, RoundedCornerShape(14.dp))
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isPlaying) theme.primaryColor.copy(alpha = 0.22f) else theme.surfaceColor
+                    )
+                    .border(1.dp, if (isPlaying) theme.primaryColor.copy(alpha = 0.5f) else Color.Transparent, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.MusicNote else Icons.Default.GraphicEq,
+                    contentDescription = null,
+                    tint = if (isPlaying) theme.primaryColor else DemonicTextMuted,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
 
-        LiveEqualizerBars(
-            isPlaying = isPlaying,
-            primaryColor = theme.primaryColor,
-            secondaryColor = theme.secondaryColor
-        )
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (title.isNotEmpty()) title else "Demonic Live Stream",
+                    color = DemonicTextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                if (!nextTrackTitle.isNullOrBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.SkipNext,
+                            contentDescription = null,
+                            tint = theme.secondaryColor,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "Next: " + nextTrackTitle,
+                            color = theme.secondaryColor,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "‹ Slide ›",
+                            color = theme.primaryColor.copy(alpha = 0.8f),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (isPlaying) "Playing in Sync • 48kHz" else "Paused",
+                            color = DemonicTextMuted,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Normal
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "‹ Slide to Skip ›",
+                            color = theme.primaryColor.copy(alpha = 0.8f),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            LiveEqualizerBars(
+                isPlaying = isPlaying,
+                primaryColor = theme.primaryColor,
+                secondaryColor = theme.secondaryColor
+            )
+        }
     }
 }
 

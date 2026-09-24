@@ -471,6 +471,51 @@ fun RoomScreen(
                                         fontWeight = FontWeight.Black
                                     )
                                 }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                // FX Studio Button (Top Bar, Next to HOST)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    Color(0xFFFF007A).copy(alpha = 0.22f),
+                                                    Color(0xFF7928CA).copy(alpha = 0.22f)
+                                                )
+                                            )
+                                        )
+                                        .border(
+                                            1.dp,
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    Color(0xFFFF007A).copy(alpha = 0.7f),
+                                                    Color(0xFF7928CA).copy(alpha = 0.7f)
+                                                )
+                                            ),
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .clickable {
+                                            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                            showFxStudioSheet = true
+                                        }
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Palette,
+                                            contentDescription = "FX Studio",
+                                            tint = Color(0xFFFF55AA),
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(
+                                            text = "FX Studio 🎨",
+                                            color = Color.White,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                             Text(
                                 text = if (uiState.isHost) "Room Master" else "Demonic Audio Sync",
@@ -851,47 +896,44 @@ fun RoomScreen(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Video Quality Pill & Watch Party Cinema Badge Row on Video Player (Placed at TOP so bottom controls & settings gear are never blocked!)
+                    // Video Controls Row on Video Player (All placed together on Left side per user request; Pixel/Quality removed)
                     if (!isInPip && !isFullscreen && playerDisplayMode == PlayerDisplayMode.VIDEO && hasVideo) {
-                        // Quick 1-Tap "Hide Video (Chat Mode) 💬" Pill at Top Start
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(8.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.Black.copy(alpha = 0.8f))
-                                .border(1.dp, currentTheme.borderColor.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-                                .clickable {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                    playerDisplayMode = PlayerDisplayMode.COMPACT
-                                }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.GraphicEq,
-                                    contentDescription = "Chat Mode",
-                                    tint = currentTheme.primaryColor,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "Hide Video 💬",
-                                    color = Color.White,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        // Top End Row: Aspect Ratio Toggle, Quality Pill, and Cinema Party
                         Row(
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
+                                .align(Alignment.TopStart)
                                 .padding(8.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Quick 1-Tap "Hide Video (Chat Mode) 💬" Pill
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.Black.copy(alpha = 0.8f))
+                                    .border(1.dp, currentTheme.borderColor.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                        playerDisplayMode = PlayerDisplayMode.COMPACT
+                                    }
+                                    .padding(horizontal = 7.dp, vertical = 4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.GraphicEq,
+                                        contentDescription = "Chat Mode",
+                                        tint = currentTheme.primaryColor,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Hide Video 💬",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
                             // Aspect Ratio Toggle: 16:9 Standard vs 9:16 Full Reel
                             Box(
                                 modifier = Modifier
@@ -914,35 +956,6 @@ fun RoomScreen(
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
                                         text = if (isVerticalFullRatio) "9:16 Reel" else "16:9 Wide",
-                                        color = Color.White,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            // Quality selector pill
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.Black.copy(alpha = 0.8f))
-                                    .border(1.dp, DemonicBorder.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                        showQualityDialog = true
-                                    }
-                                    .padding(horizontal = 7.dp, vertical = 4.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.HighQuality,
-                                        contentDescription = "Video Quality",
-                                        tint = DemonicCrimson,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = currentQuality.badge,
                                         color = Color.White,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
@@ -1314,14 +1327,21 @@ fun RoomScreen(
                     )
                 }
 
-                // Now Playing Track Banner with Live Animated Audio Equalizer
+                // Now Playing Track Banner with Live Animated Audio Equalizer & Swipe to Skip/Prev Gestures
                 if (playerDisplayMode != PlayerDisplayMode.COMPACT && !uiState.room?.videoId.isNullOrEmpty()) {
                     NowPlayingTrackBanner(
                         title = uiState.room?.videoTitle ?: "",
                         isPlaying = uiState.room?.isPlaying ?: false,
                         nextTrackTitle = uiState.queue.firstOrNull()?.title,
+                        hasPreviousTrack = viewModel.hasPreviousTrack(),
                         theme = currentTheme,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                        onSwipeLeft = {
+                            viewModel.skipToNextTrack()
+                        },
+                        onSwipeRight = {
+                            viewModel.playPreviousTrack()
+                        },
                         onClick = { showQueueSheet = true }
                     )
                 }
@@ -1440,26 +1460,7 @@ fun RoomScreen(
                     }
                 }
 
-                // Live Member Avatars Row with FX Studio Button (Hidden in Compact mode for maximum chat space)
-                if (playerDisplayMode != PlayerDisplayMode.COMPACT) {
-                    MemberAvatarRow(
-                        members = uiState.members,
-                        djId = uiState.room?.djId,
-                        isHostUser = uiState.isHost,
-                        theme = currentTheme,
-                        onPassAux = { targetUid ->
-                            viewModel.passTheAux(targetUid)
-                        },
-                        onOpenMembersSheet = {
-                            showMembersSheet = true
-                        },
-                        onOpenFxStudio = {
-                            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                            showFxStudioSheet = true
-                        },
-                        modifier = Modifier.padding(vertical = 3.dp)
-                    )
-                }
+
 
                 // Live Chat Stream
                 Box(

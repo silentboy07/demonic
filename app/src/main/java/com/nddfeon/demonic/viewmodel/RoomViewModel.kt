@@ -85,6 +85,9 @@ class RoomViewModel @Inject constructor(
     private var lastObservedVideoId: String = ""
     private var lastVideoLoadedTime: Long = 0L
     private var lastDriftSeekTime: Long = 0L
+    private val playbackHistory = mutableListOf<Pair<String, String>>()
+
+    fun hasPreviousTrack(): Boolean = playbackHistory.isNotEmpty()
 
     fun toggleLocalMute(): Boolean {
         val newMute = playerManager.toggleLocalMute()
@@ -333,8 +336,52 @@ class RoomViewModel @Inject constructor(
 
     fun skipToNextTrack() {
         if (_uiState.value.canControlPlayback) {
-            autoPlayNextTrack()
+            val currentQueue = _uiState.value.queue
+            if (currentQueue.isNotEmpty()) {
+                val nextTrack = currentQueue.first()
+                playQueueItem(nextTrack)
+            } else {
+                _uiState.value = _uiState.value.copy(errorMessage = "Queue is empty. Add songs to play next!")
+            }
+        } else {
+            _uiState.value = _uiState.value.copy(errorMessage = "Only Host & DJ can change songs")
         }
+    }
+
+    fun playPreviousTrack() {
+        if (!_uiState.value.canControlPlayback) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Only Host & DJ can change songs")
+            return
+        }
+        if (playbackHistory.isEmpty()) {
+            _uiState.value = _uiState.value.copy(errorMessage = "No previous song in history")
+            return
+        }
+        val prev = playbackHistory.removeAt(playbackHistory.lastIndex)
+        val currentVid = _uiState.value.room?.videoId
+        val currentTitle = _uiState.value.room?.videoTitle
+
+        // Re-insert current track at the beginning of queue so it can be played again when user goes forward
+        if (!currentVid.isNullOrBlank()) {
+            val user = getEffectiveUser()
+            val currentQueue = _uiState.value.queue.toMutableList()
+            val restoredItem = QueueItem(
+                id = "q_" + System.currentTimeMillis() + "_" + (100..999).random(),
+                videoId = currentVid,
+                title = currentTitle ?: "Track",
+                thumbnailUrl = "https://img.youtube.com/vi/$currentVid/hqdefault.jpg",
+                addedByUid = user.uid,
+                addedByName = user.displayName,
+                addedAt = System.currentTimeMillis()
+            )
+            currentQueue.add(0, restoredItem)
+            _uiState.value = _uiState.value.copy(queue = currentQueue)
+            viewModelScope.launch {
+                roomRepository.reorderQueue(roomCode, currentQueue)
+            }
+        }
+
+        playTrack(prev.first, prev.second, recordHistory = false)
     }
 
     private fun autoPlayNextTrack() {
@@ -471,8 +518,17 @@ class RoomViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(videoInput = "", errorMessage = null)
     }
 
-    fun playTrack(videoId: String, title: String) {
+    fun playTrack(videoId: String, title: String, recordHistory: Boolean = true) {
         if (!_uiState.value.canControlPlayback) return
+        val currentVid = _uiState.value.room?.videoId
+        val currentTitle = _uiState.value.room?.videoTitle
+        if (recordHistory && !currentVid.isNullOrBlank() && currentVid != videoId) {
+            val entry = currentVid to (currentTitle ?: "Track")
+            if (playbackHistory.isEmpty() || playbackHistory.last() != entry) {
+                playbackHistory.add(entry)
+                if (playbackHistory.size > 50) playbackHistory.removeAt(0)
+            }
+        }
         lastObservedVideoId = videoId
         playerManager.loadOrCueVideo(videoId, 0f, autoPlay = true)
         playerManager.play()
