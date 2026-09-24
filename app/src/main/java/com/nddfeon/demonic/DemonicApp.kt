@@ -60,7 +60,7 @@ class DemonicApp : Application(), ImageLoaderFactory {
             database.setPersistenceEnabled(true)
         } catch (_: Exception) {}
 
-        authRepository = FirebaseAuthRepository(auth)
+        authRepository = FirebaseAuthRepository(auth, this)
         roomRepository = FirebaseRoomRepository(database)
         youTubePlayerManager = YouTubePlayerManager()
         youTubeSearchManager = YouTubeSearchManager()

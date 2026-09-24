@@ -33,8 +33,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.ui.text.style.TextOverflow
+import com.nddfeon.demonic.ui.components.UserProfileBottomSheet
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
@@ -134,6 +137,7 @@ fun HomeScreen(
     val isAdsEnabled by ownerConfigManager.isAdsEnabled.collectAsState()
     val globalAnnouncement by ownerConfigManager.globalAnnouncement.collectAsState()
     var showOwnerPanel by remember { mutableStateOf(false) }
+    var showProfileSheet by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
@@ -154,53 +158,100 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        showProfileSheet = true
+                    }
+                    .padding(vertical = 4.dp, horizontal = 4.dp)
             ) {
-                // User Avatar
+                // User Avatar with edit pencil badge
                 Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF221A30))
-                        .border(2.dp, DemonicCrimson, CircleShape),
+                    modifier = Modifier.size(50.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (!currentUser?.photoUrl.isNullOrEmpty()) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(currentUser?.photoUrl)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = "User Avatar",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        val initial = currentUser?.displayName?.firstOrNull()?.uppercase() ?: "D"
-                        Text(
-                            text = initial,
-                            color = DemonicTextPrimary,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF221A30))
+                            .border(2.dp, DemonicCrimson, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (currentUser?.photoUrl?.startsWith("emoji:") == true) {
+                            Text(
+                                text = currentUser!!.photoUrl!!.removePrefix("emoji:"),
+                                fontSize = 24.sp
+                            )
+                        } else if (!currentUser?.photoUrl.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(currentUser?.photoUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = "User Avatar",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            val initial = currentUser?.displayName?.firstOrNull()?.uppercase() ?: "D"
+                            Text(
+                                text = initial,
+                                color = DemonicTextPrimary,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Little edit badge on bottom-right of avatar
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(DemonicCrimson)
+                            .border(1.5.dp, DemonicBackground, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit Profile",
+                            tint = Color.White,
+                            modifier = Modifier.size(9.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 Column {
-                    Text(
-                        text = "WELCOME",
-                        color = DemonicTextMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "PROFILE",
+                            color = DemonicCrimson,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "• TAP TO EDIT ✏️",
+                            color = DemonicTextMuted,
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                     Text(
                         text = currentUser?.displayName ?: "Demon Listener",
                         color = DemonicTextPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 16.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -805,6 +856,21 @@ fun HomeScreen(
         OwnerControlBottomSheet(
             ownerConfigManager = ownerConfigManager,
             onDismiss = { showOwnerPanel = false }
+        )
+    }
+
+    if (showProfileSheet) {
+        UserProfileBottomSheet(
+            currentUser = currentUser,
+            recentRoomsCount = recentRooms.size,
+            onSaveProfile = { newName, newPhotoUrl ->
+                viewModel.updateProfile(newName, newPhotoUrl)
+            },
+            onSignOut = {
+                viewModel.signOut()
+                onSignOut()
+            },
+            onDismiss = { showProfileSheet = false }
         )
     }
 }

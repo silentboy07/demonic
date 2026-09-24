@@ -115,6 +115,13 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun updateProfile(displayName: String, photoUrl: String? = null, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val result = authRepository.updateProfile(displayName, photoUrl)
+            onComplete?.invoke(result.isSuccess)
+        }
+    }
+
     fun signOut() {
         viewModelScope.launch {
             authRepository.signOut()

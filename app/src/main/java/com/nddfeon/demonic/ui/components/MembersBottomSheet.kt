@@ -169,7 +169,12 @@ fun MembersBottomSheet(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (member.photoUrl.isNotEmpty()) {
+                            if (member.photoUrl.startsWith("emoji:")) {
+                                Text(
+                                    text = member.photoUrl.removePrefix("emoji:"),
+                                    fontSize = 20.sp
+                                )
+                            } else if (member.photoUrl.isNotEmpty()) {
                                 AsyncImage(
                                     model = member.photoUrl,
                                     contentDescription = member.name,
