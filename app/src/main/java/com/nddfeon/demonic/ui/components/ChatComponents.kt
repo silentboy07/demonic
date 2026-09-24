@@ -311,9 +311,9 @@ fun ChatMessageItem(
             }
 
             val bubbleShape = if (isOwnMessage) {
-                RoundedCornerShape(14.dp, 14.dp, 3.dp, 14.dp)
+                RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
             } else {
-                RoundedCornerShape(14.dp, 14.dp, 14.dp, 3.dp)
+                RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
             }
 
             Box(
@@ -338,7 +338,7 @@ fun ChatMessageItem(
                             onLongClick?.invoke(message)
                         }
                     )
-                    .padding(horizontal = 10.dp, vertical = 5.5.dp)
+                    .padding(horizontal = 12.dp, vertical = 7.dp)
             ) {
                 Column {
                     // Quoted Reply Preview
@@ -348,30 +348,40 @@ fun ChatMessageItem(
                             text = message.replyToText,
                             isOwnMessage = isOwnMessage,
                             theme = theme,
-                            modifier = Modifier.padding(bottom = 3.dp)
+                            modifier = Modifier.padding(bottom = 4.dp)
                         )
                     }
 
-                    // Message Text + Inline / Bottom-End Timestamp
+                    // Message Text
+                    Text(
+                        text = message.text,
+                        color = if (isOwnMessage) Color.White else DemonicTextPrimary,
+                        fontSize = 13.5.sp,
+                        lineHeight = 18.5.sp
+                    )
+
+                    // Bottom-End Timestamp & Delivery Status
                     Row(
-                        verticalAlignment = Alignment.Bottom,
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.End
                     ) {
-                        Text(
-                            text = message.text,
-                            color = DemonicTextPrimary,
-                            fontSize = 13.5.sp,
-                            lineHeight = 18.sp,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-
                         if (formattedTime.isNotEmpty()) {
-                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = formattedTime,
                                 color = if (isOwnMessage) Color.White.copy(alpha = 0.65f) else DemonicTextMuted.copy(alpha = 0.75f),
+                                fontSize = 9.sp
+                            )
+                        }
+                        if (isOwnMessage) {
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "✓✓",
+                                color = theme.secondaryColor,
                                 fontSize = 9.sp,
-                                modifier = Modifier.padding(bottom = 0.5.dp)
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -902,23 +912,27 @@ fun ChatInputBar(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
+    var showQuickEmojis by remember { mutableStateOf(false) }
+
     val sendScale by animateFloatAsState(
         targetValue = if (isPressed && value.isNotBlank() && !isTimedOut) 0.9f else 1f,
         animationSpec = spring(stiffness = 600f),
         label = "SendScale"
     )
 
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(22.dp)
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(theme.surfaceColor)
+            .clip(RoundedCornerShape(20.dp))
+            .background(theme.surfaceColor.copy(alpha = 0.95f))
             .border(
                 width = 1.dp,
                 color = if (isTimedOut) Color(0xFF5A1A22) else theme.borderColor,
-                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                shape = RoundedCornerShape(20.dp)
             )
+            .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
         if (isTimedOut) {
             val remainingSec = ((timedOutUntil - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
@@ -929,20 +943,20 @@ fun ChatInputBar(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF2B1015))
-                    .border(1.dp, DemonicErrorRed.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .border(1.dp, DemonicErrorRed.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "⏱️", fontSize = 16.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "⏱️", fontSize = 15.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "You are timed out by the host ($timeDisplay remaining)",
+                        text = "Timed out ($timeDisplay remaining)",
                         color = Color(0xFFFF8A80),
-                        fontSize = 12.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -963,28 +977,34 @@ fun ChatInputBar(
                 }
             }
 
-            // Quick 1-Tap Reaction Emojis Row
-            val quickEmojis = remember { listOf("🔥", "❤️", "👑", "💀", "⚡", "🚀", "😂", "🎧", "✨") }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 3.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Collapsible Quick Emoji Reaction Bar
+            AnimatedVisibility(
+                visible = showQuickEmojis,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
             ) {
-                quickEmojis.forEach { emoji ->
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(theme.surfaceVariantColor.copy(alpha = 0.5f))
-                            .clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                onValueChange(value + emoji)
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = emoji, fontSize = 15.sp)
+                val quickEmojis = remember { listOf("🔥", "❤️", "👑", "💀", "⚡", "🚀", "😂", "🎧", "✨") }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    quickEmojis.forEach { emoji ->
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(theme.surfaceVariantColor.copy(alpha = 0.6f))
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    onValueChange(value + emoji)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = emoji, fontSize = 14.sp)
+                        }
                     }
                 }
             }
@@ -993,24 +1013,41 @@ fun ChatInputBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Emoji Toggle Button
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(if (showQuickEmojis) theme.primaryColor.copy(alpha = 0.2f) else Color.Transparent)
+                        .clickable {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            showQuickEmojis = !showQuickEmojis
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "😊", fontSize = 16.sp)
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
                 // Text Input Box
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .clip(shape)
                         .background(theme.surfaceVariantColor)
-                        .border(1.dp, if (replyingTo != null) theme.primaryColor else theme.borderColor, shape)
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .border(1.dp, if (replyingTo != null) theme.primaryColor else theme.borderColor.copy(alpha = 0.5f), shape)
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     if (value.isEmpty()) {
                         Text(
                             text = if (replyingTo != null) "Reply to @${replyingTo.senderName}..." else "Say something in room...",
                             color = DemonicTextMuted,
-                            fontSize = 14.sp
+                            fontSize = 13.5.sp
                         )
                     }
 
@@ -1028,32 +1065,32 @@ fun ChatInputBar(
                         }),
                         textStyle = TextStyle(
                             color = DemonicTextPrimary,
-                            fontSize = 14.sp
+                            fontSize = 13.5.sp
                         ),
                         cursorBrush = SolidColor(theme.primaryColor)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // Tactile Send Button
                 val canSend = value.isNotBlank()
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(38.dp)
                         .scale(sendScale)
-                        .shadow(if (canSend) 8.dp else 0.dp, CircleShape, spotColor = theme.primaryColor)
+                        .shadow(if (canSend) 6.dp else 0.dp, CircleShape, spotColor = theme.primaryColor)
                         .clip(CircleShape)
                         .background(
                             if (canSend) {
                                 Brush.linearGradient(theme.buttonGradient)
                             } else {
-                                Brush.linearGradient(listOf(theme.surfaceColor, theme.surfaceVariantColor))
+                                Brush.linearGradient(listOf(theme.surfaceVariantColor, theme.surfaceColor))
                             }
                         )
                         .border(
                             width = 1.dp,
-                            color = if (canSend) theme.primaryColor.copy(alpha = 0.5f) else theme.borderColor,
+                            color = if (canSend) theme.primaryColor.copy(alpha = 0.6f) else theme.borderColor,
                             shape = CircleShape
                         )
                         .clickable(
@@ -1070,7 +1107,7 @@ fun ChatInputBar(
                         imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Send",
                         tint = if (canSend) Color.White else DemonicTextMuted,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
             }

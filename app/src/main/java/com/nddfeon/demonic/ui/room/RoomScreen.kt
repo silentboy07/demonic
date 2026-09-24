@@ -130,6 +130,7 @@ import com.nddfeon.demonic.ui.components.SyncStatusBadge
 import com.nddfeon.demonic.ui.components.TypingIndicatorBubble
 import com.nddfeon.demonic.ui.components.VinylDisc
 import com.nddfeon.demonic.ui.components.NowPlayingTrackBanner
+import com.nddfeon.demonic.ui.components.LiveEqualizerBars
 import com.nddfeon.demonic.ui.components.RoomQrDialog
 import com.nddfeon.demonic.ui.components.SleepTimerDialog
 import com.nddfeon.demonic.ui.components.YouTubeExplorerSheet
@@ -368,18 +369,19 @@ fun RoomScreen(
             )
     ) {
         // Ambient Neon Glow Top Layer
+        val isCompactMode = (playerDisplayMode == PlayerDisplayMode.COMPACT)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(320.dp)
+                .height(if (isCompactMode) 130.dp else 320.dp)
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            currentTheme.glowColor,
-                            currentTheme.primaryColor.copy(alpha = 0.12f),
+                            currentTheme.glowColor.copy(alpha = if (isCompactMode) 0.15f else 0.35f),
+                            currentTheme.primaryColor.copy(alpha = if (isCompactMode) 0.05f else 0.12f),
                             Color.Transparent
                         ),
-                        radius = 900f
+                        radius = if (isCompactMode) 500f else 900f
                     )
                 )
         )
@@ -399,18 +401,19 @@ fun RoomScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 4.dp),
+                        .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left: Back button + Room Code + Role Tag
+                    // Left: Back button + Room Code + Role Tag + Public/Private Badge (Weighted to never push right actions)
                     Row(
+                        modifier = Modifier.weight(1f, fill = false),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
                                 .background(currentTheme.surfaceColor)
                                 .border(1.dp, currentTheme.borderColor, CircleShape)
@@ -425,24 +428,27 @@ fun RoomScreen(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Leave Room",
                                 tint = DemonicTextPrimary,
-                                modifier = Modifier.size(19.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
 
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
                                 Text(
                                     text = "ROOM ${uiState.roomCode}",
                                     color = Color.White,
-                                    fontSize = 15.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Black,
-                                    letterSpacing = 1.sp
+                                    letterSpacing = 0.5.sp,
+                                    maxLines = 1
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
                                 // Role Tag Badge
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
+                                        .clip(RoundedCornerShape(5.dp))
                                         .background(
                                             when {
                                                 uiState.isHost -> DemonicWarningAmber.copy(alpha = 0.2f)
@@ -451,90 +457,45 @@ fun RoomScreen(
                                             }
                                         )
                                         .border(
-                                            1.dp,
+                                            0.8.dp,
                                             when {
                                                 uiState.isHost -> DemonicWarningAmber.copy(alpha = 0.6f)
                                                 uiState.isDj -> DemonicViolet.copy(alpha = 0.6f)
                                                 else -> currentTheme.primaryColor.copy(alpha = 0.5f)
                                             },
-                                            RoundedCornerShape(6.dp)
+                                            RoundedCornerShape(5.dp)
                                         )
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        .padding(horizontal = 5.dp, vertical = 1.5.dp)
                                 ) {
                                     Text(
                                         text = when {
                                             uiState.isHost -> "👑 HOST"
                                             uiState.isDj -> "🎧 DJ"
-                                            else -> "⚡ LISTENER"
+                                            else -> "⚡ VIP"
                                         },
                                         color = when {
                                             uiState.isHost -> DemonicWarningAmber
                                             uiState.isDj -> DemonicViolet
                                             else -> currentTheme.primaryColor
                                         },
-                                        fontSize = 9.sp,
+                                        fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Black
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(6.dp))
-                                // FX Studio Button (Top Bar, Next to HOST)
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                listOf(
-                                                    Color(0xFFFF007A).copy(alpha = 0.22f),
-                                                    Color(0xFF7928CA).copy(alpha = 0.22f)
-                                                )
-                                            )
-                                        )
-                                        .border(
-                                            1.dp,
-                                            Brush.horizontalGradient(
-                                                listOf(
-                                                    Color(0xFFFF007A).copy(alpha = 0.7f),
-                                                    Color(0xFF7928CA).copy(alpha = 0.7f)
-                                                )
-                                            ),
-                                            RoundedCornerShape(6.dp)
-                                        )
-                                        .clickable {
-                                            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                                            showFxStudioSheet = true
-                                        }
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Palette,
-                                            contentDescription = "FX Studio",
-                                            tint = Color(0xFFFF55AA),
-                                            modifier = Modifier.size(11.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(3.dp))
-                                        Text(
-                                            text = "FX Studio 🎨",
-                                            color = Color.White,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(6.dp))
+
                                 val isRoomPublic = uiState.room?.isPublic ?: true
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
+                                        .clip(RoundedCornerShape(5.dp))
                                         .background(
                                             if (isRoomPublic) DemonicSyncTeal.copy(alpha = 0.15f)
                                             else Color(0xFF33202A)
                                         )
                                         .border(
-                                            1.dp,
+                                            0.8.dp,
                                             if (isRoomPublic) DemonicSyncTeal.copy(alpha = 0.45f)
                                             else DemonicBorder,
-                                            RoundedCornerShape(6.dp)
+                                            RoundedCornerShape(5.dp)
                                         )
                                         .clickable(enabled = uiState.isHost) {
                                             if (uiState.isHost) {
@@ -549,12 +510,12 @@ fun RoomScreen(
                                                 ).show()
                                             }
                                         }
-                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                        .padding(horizontal = 4.5.dp, vertical = 1.5.dp)
                                 ) {
                                     Text(
-                                        text = if (isRoomPublic) "🌐 PUBLIC" else "🔒 PRIVATE",
+                                        text = if (isRoomPublic) "🌐 PUB" else "🔒 PRIV",
                                         color = if (isRoomPublic) DemonicSyncTeal else DemonicTextMuted,
-                                        fontSize = 8.5.sp,
+                                        fontSize = 8.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -562,28 +523,29 @@ fun RoomScreen(
                             Text(
                                 text = if (uiState.isHost) "Room Master" else "Demonic Audio Sync",
                                 color = DemonicTextMuted,
-                                fontSize = 10.sp
+                                fontSize = 9.5.sp,
+                                maxLines = 1
                             )
                         }
                     }
 
-                    // Right: Members Count Pill + Local Mute (AFK) Pill + More Options Menu
+                    // Right: Members Count Pill + Local Mute (AFK) Button + 3-DOTS MORE BUTTON (Always Guaranteed Visible!)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // Live Member Count Badge -> Opens MembersBottomSheet
                         Box(
                             modifier = Modifier
-                                .height(32.dp)
-                                .clip(RoundedCornerShape(16.dp))
+                                .height(30.dp)
+                                .clip(RoundedCornerShape(15.dp))
                                 .background(currentTheme.surfaceColor)
-                                .border(1.dp, currentTheme.borderColor, RoundedCornerShape(16.dp))
+                                .border(1.dp, currentTheme.borderColor, RoundedCornerShape(15.dp))
                                 .clickable {
                                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                     showMembersSheet = true
                                 }
-                                .padding(horizontal = 9.dp),
+                                .padding(horizontal = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -593,18 +555,18 @@ fun RoomScreen(
                                         .clip(CircleShape)
                                         .background(Color(0xFF00FF66))
                                 )
-                                Spacer(modifier = Modifier.width(5.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
                                     imageVector = Icons.Default.People,
                                     contentDescription = "Members",
                                     tint = currentTheme.secondaryColor,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(13.dp)
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
                                 Text(
                                     text = "${uiState.members.size}",
                                     color = DemonicTextPrimary,
-                                    fontSize = 12.sp,
+                                    fontSize = 11.5.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -613,8 +575,8 @@ fun RoomScreen(
                         // Local Mute / AFK Quick Button
                         Box(
                             modifier = Modifier
-                                .height(32.dp)
-                                .clip(RoundedCornerShape(16.dp))
+                                .size(30.dp)
+                                .clip(CircleShape)
                                 .background(
                                     if (uiState.isMutedLocally) Brush.horizontalGradient(listOf(Color(0xFF422204), Color(0xFF261402)))
                                     else Brush.horizontalGradient(listOf(currentTheme.surfaceColor, currentTheme.surfaceVariantColor))
@@ -622,7 +584,7 @@ fun RoomScreen(
                                 .border(
                                     1.dp,
                                     if (uiState.isMutedLocally) Color(0xFFFFB300) else currentTheme.borderColor,
-                                    RoundedCornerShape(16.dp)
+                                    CircleShape
                                 )
                                 .clickable {
                                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
@@ -632,30 +594,18 @@ fun RoomScreen(
                                         if (isNowMuted) "Audio muted for you 🔇 (Room is still live!)" else "Audio unmuted 🔊",
                                         Toast.LENGTH_SHORT
                                     ).show()
-                                }
-                                .padding(horizontal = 9.dp),
+                                },
                             contentAlignment = Alignment.Center
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = if (uiState.isMutedLocally) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                                    contentDescription = "Local Mute",
-                                    tint = if (uiState.isMutedLocally) Color(0xFFFFC107) else DemonicTextPrimary,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                if (uiState.isMutedLocally) {
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "AFK",
-                                        color = Color(0xFFFFC107),
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.ExtraBold
-                                    )
-                                }
-                            }
+                            Icon(
+                                imageVector = if (uiState.isMutedLocally) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                contentDescription = "Local Mute",
+                                tint = if (uiState.isMutedLocally) Color(0xFFFFC107) else DemonicTextPrimary,
+                                modifier = Modifier.size(15.dp)
+                            )
                         }
 
-                        // More Actions Dropdown Menu (Share, QR Code, Sleep Timer, Leave Room, End Room)
+                        // 3-DOTS MORE ACTIONS DROPDOWN BUTTON (Never pushed off screen!)
                         var showHeaderMenu by remember { mutableStateOf(false) }
                         Box {
                             IconButton(
@@ -663,7 +613,7 @@ fun RoomScreen(
                                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                     showHeaderMenu = true
                                 },
-                                modifier = Modifier.size(34.dp)
+                                modifier = Modifier.size(32.dp)
                             ) {
                                 BadgedBox(
                                     badge = {
@@ -859,8 +809,12 @@ fun RoomScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(if (isInPip || isFullscreen) RoundedCornerShape(0.dp) else RoundedCornerShape(16.dp))
-                        .background(Color.Black)
-                        .then(if (!isInPip && !isFullscreen) Modifier.border(1.dp, currentTheme.borderColor.copy(alpha = 0.6f), RoundedCornerShape(16.dp)) else Modifier)
+                        .background(if (playerDisplayMode == PlayerDisplayMode.VIDEO || isInPip || isFullscreen) Color.Black else Color.Transparent)
+                        .then(
+                            if (playerDisplayMode == PlayerDisplayMode.VIDEO && !isInPip && !isFullscreen)
+                                Modifier.border(1.dp, currentTheme.borderColor.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                            else Modifier
+                        )
                         .alpha(if ((isInPip || isFullscreen || playerDisplayMode == PlayerDisplayMode.VIDEO) && hasVideo) 1f else 0.001f)
                 ) {
                     AndroidView(
@@ -1119,7 +1073,7 @@ fun RoomScreen(
                     }
                 }
 
-                // Compact Mini Player Bar
+                // Compact Mini Player Bar (Clean, uncrowded & never overflowing)
                 if (!isInPip && hasVideo && playerDisplayMode == PlayerDisplayMode.COMPACT) {
                     Row(
                         modifier = Modifier
@@ -1134,10 +1088,10 @@ fun RoomScreen(
                             model = "https://img.youtube.com/vi/${uiState.room?.videoId}/hqdefault.jpg",
                             contentDescription = "Thumbnail",
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(40.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color.Black),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(
@@ -1147,9 +1101,10 @@ fun RoomScreen(
                             Text(
                                 text = uiState.room?.videoTitle ?: "Now Playing",
                                 color = DemonicTextPrimary,
-                                fontSize = 13.sp,
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
+                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Spacer(modifier = Modifier.height(2.dp))
@@ -1159,36 +1114,7 @@ fun RoomScreen(
                             )
                         }
 
-                        // Show Video 🎬 Expand Pill
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(currentTheme.primaryColor.copy(alpha = 0.15f))
-                                .border(1.dp, currentTheme.primaryColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                                .clickable {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                    playerDisplayMode = PlayerDisplayMode.VIDEO
-                                }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Videocam,
-                                    contentDescription = "Show Video",
-                                    tint = currentTheme.primaryColor,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "Video 🎬",
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
 
                         if (uiState.canControlPlayback) {
                             IconButton(
@@ -1196,13 +1122,13 @@ fun RoomScreen(
                                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                     viewModel.togglePlayPause()
                                 },
-                                modifier = Modifier.size(34.dp)
+                                modifier = Modifier.size(32.dp)
                             ) {
                                 Icon(
                                     imageVector = if (uiState.room?.isPlaying == true) Icons.Default.Pause else Icons.Default.PlayArrow,
                                     contentDescription = "Play/Pause",
                                     tint = currentTheme.primaryColor,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                             IconButton(
@@ -1210,15 +1136,21 @@ fun RoomScreen(
                                     view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                     viewModel.skipToNextTrack()
                                 },
-                                modifier = Modifier.size(34.dp)
+                                modifier = Modifier.size(32.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.SkipNext,
                                     contentDescription = "Next Track",
                                     tint = DemonicTextSecondary,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
+                        } else {
+                            LiveEqualizerBars(
+                                isPlaying = uiState.room?.isPlaying == true,
+                                primaryColor = currentTheme.primaryColor,
+                                secondaryColor = currentTheme.secondaryColor
+                            )
                         }
                     }
                 }
@@ -2156,7 +2088,8 @@ private fun ListenerAudioSyncSection(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 3.dp)
+            .height(48.dp)
+            .padding(horizontal = 16.dp, vertical = 2.dp)
             .clip(shape)
             .background(
                 if (isMutedLocally) Brush.verticalGradient(listOf(Color(0xFF261908), Color(0xFF1C1306)))
@@ -2167,7 +2100,8 @@ private fun ListenerAudioSyncSection(
                 if (isMutedLocally) Color(0xFFFFB300) else theme.borderColor,
                 shape
             )
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

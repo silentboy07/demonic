@@ -189,6 +189,7 @@ fun NowPlayingTrackBanner(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .height(52.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(theme.surfaceColor.copy(alpha = 0.5f))
             .border(1.dp, theme.borderColor.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
@@ -217,7 +218,9 @@ fun NowPlayingTrackBanner(
                     text = if (hasPreviousTrack) "PREV TRACK" else "NO HISTORY",
                     color = if (hasPreviousTrack) theme.secondaryColor else DemonicTextMuted,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -230,7 +233,9 @@ fun NowPlayingTrackBanner(
                     text = if (!nextTrackTitle.isNullOrBlank()) "NEXT TRACK" else "QUEUE END",
                     color = if (!nextTrackTitle.isNullOrBlank()) theme.primaryColor else DemonicTextMuted,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Icon(
@@ -242,10 +247,11 @@ fun NowPlayingTrackBanner(
             }
         }
 
-        // Swipable Track Banner Card
+        // Swipable Track Banner Card - STRICT FIXED HEIGHT 52.dp
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(52.dp)
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
                 .draggable(
                     orientation = Orientation.Horizontal,
@@ -277,12 +283,12 @@ fun NowPlayingTrackBanner(
                     )
                 )
                 .border(1.dp, theme.borderColor, RoundedCornerShape(14.dp))
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
                     .background(
                         if (isPlaying) theme.primaryColor.copy(alpha = 0.22f) else theme.surfaceColor
@@ -294,26 +300,33 @@ fun NowPlayingTrackBanner(
                     imageVector = if (isPlaying) Icons.Default.MusicNote else Icons.Default.GraphicEq,
                     contentDescription = null,
                     tint = if (isPlaying) theme.primaryColor else DemonicTextMuted,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(17.dp)
                 )
             }
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
                     text = if (title.isNotEmpty()) title else "Demonic Live Stream",
                     color = DemonicTextPrimary,
-                    fontSize = 13.sp,
+                    fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
+                    softWrap = false,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(1.dp))
 
                 if (!nextTrackTitle.isNullOrBlank()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Icon(
                             imageVector = Icons.Default.SkipNext,
                             contentDescription = null,
@@ -324,33 +337,44 @@ fun NowPlayingTrackBanner(
                         Text(
                             text = "Next: " + nextTrackTitle,
                             color = theme.secondaryColor,
-                            fontSize = 10.5.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "‹ Slide ›",
                             color = theme.primaryColor.copy(alpha = 0.8f),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
                     }
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text(
                             text = if (isPlaying) "Playing in Sync • 48kHz" else "Paused",
                             color = DemonicTextMuted,
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Normal
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Normal,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "‹ Slide to Skip ›",
                             color = theme.primaryColor.copy(alpha = 0.8f),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
                     }
                 }
