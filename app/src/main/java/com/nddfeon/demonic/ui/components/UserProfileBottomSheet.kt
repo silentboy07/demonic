@@ -3,8 +3,12 @@ package com.nddfeon.demonic.ui.components
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
+import com.nddfeon.demonic.util.DemonicCardGenerator
+import com.nddfeon.demonic.util.ShareTarget
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -469,10 +473,276 @@ fun UserProfileBottomSheet(
                             fontWeight = FontWeight.Bold
                         )
                     }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                val url = "https://github.com/silentboy07/demonic#privacy-policy"
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                try {
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            }
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Privacy Policy & Terms",
+                            color = DemonicTextMuted,
+                            fontSize = 12.sp
+                        )
+                        Text(
+                            text = "View ↗",
+                            color = DemonicSyncTeal,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // VIRAL VIP STORY CARD SECTION (WhatsApp & Instagram Viral Driver)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "📸 VIRAL STORY & STATUS CARD",
+                        color = Color(0xFFFFB300),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = "WhatsApp / Instagram",
+                        color = DemonicTextMuted,
+                        fontSize = 10.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Cyberpunk Mini Card Preview
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFF260818),
+                                    Color(0xFF160924),
+                                    Color(0xFF0C0814)
+                                )
+                            )
+                        )
+                        .border(
+                            1.5.dp,
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFFFF2D55), Color(0xFF7C4DFF), Color(0xFFFFB300))
+                            ),
+                            RoundedCornerShape(16.dp)
+                        )
+                        .padding(14.dp)
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "⚡", fontSize = 16.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "DEMONIC VIP PASS",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFFFF1744).copy(alpha = 0.2f))
+                                    .border(1.dp, Color(0xFFFF1744).copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "VERIFIED",
+                                    color = Color(0xFFFF5252),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF3B154A))
+                                    .border(1.5.dp, Color(0xFFFF2D55), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = selectedPresetEmoji ?: "😈",
+                                    fontSize = 24.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (nameInput.isNotBlank()) nameInput.trim() else (currentUser?.displayName ?: "Demon Guest"),
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "🔥 Vibe Master • $recentRoomsCount Rooms Jammed",
+                                    color = Color(0xFFB388FF),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Text(
+                            text = "“We listen to YouTube music together in real-time sync with homies. 100% Free Forever!”",
+                            color = Color(0xFFCFD8DC),
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Action Buttons for Sharing
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // WhatsApp Share Button
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF25D366), Color(0xFF128C7E))
+                                )
+                            )
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                val currentName = if (nameInput.isNotBlank()) nameInput.trim() else (currentUser?.displayName ?: "Demon Guest")
+                                DemonicCardGenerator.shareVipCard(
+                                    context = context,
+                                    displayName = currentName,
+                                    avatarEmoji = selectedPresetEmoji,
+                                    recentRoomsCount = recentRoomsCount,
+                                    target = ShareTarget.WHATSAPP
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "💬", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "WhatsApp",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Instagram Story Share Button
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFFE1306C), Color(0xFF833AB4), Color(0xFFFD1D1D))
+                                )
+                            )
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                val currentName = if (nameInput.isNotBlank()) nameInput.trim() else (currentUser?.displayName ?: "Demon Guest")
+                                DemonicCardGenerator.shareVipCard(
+                                    context = context,
+                                    displayName = currentName,
+                                    avatarEmoji = selectedPresetEmoji,
+                                    recentRoomsCount = recentRoomsCount,
+                                    target = ShareTarget.INSTAGRAM
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "📸", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Insta Story",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // More / Chooser Button
+                    Box(
+                        modifier = Modifier
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(DemonicSurfaceVariant)
+                            .border(1.dp, DemonicBorder, RoundedCornerShape(12.dp))
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                val currentName = if (nameInput.isNotBlank()) nameInput.trim() else (currentUser?.displayName ?: "Demon Guest")
+                                DemonicCardGenerator.shareVipCard(
+                                    context = context,
+                                    displayName = currentName,
+                                    avatarEmoji = selectedPresetEmoji,
+                                    recentRoomsCount = recentRoomsCount,
+                                    target = ShareTarget.ALL
+                                )
+                            }
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "More ⚡",
+                            color = DemonicTextPrimary,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Save Button
             DemonicButton(
