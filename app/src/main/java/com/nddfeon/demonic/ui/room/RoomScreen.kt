@@ -47,6 +47,8 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeOff
@@ -150,6 +152,7 @@ import com.nddfeon.demonic.ui.theme.DemonicCrimsonDark
 import com.nddfeon.demonic.ui.theme.DemonicErrorRed
 import com.nddfeon.demonic.ui.theme.DemonicSurface
 import com.nddfeon.demonic.ui.theme.DemonicSurfaceVariant
+import com.nddfeon.demonic.ui.theme.DemonicSyncTeal
 import com.nddfeon.demonic.ui.theme.DemonicTextMuted
 import com.nddfeon.demonic.ui.theme.DemonicTextPrimary
 import com.nddfeon.demonic.ui.theme.DemonicTextSecondary
@@ -518,6 +521,43 @@ fun RoomScreen(
                                         )
                                     }
                                 }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                val isRoomPublic = uiState.room?.isPublic ?: true
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(
+                                            if (isRoomPublic) DemonicSyncTeal.copy(alpha = 0.15f)
+                                            else Color(0xFF33202A)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isRoomPublic) DemonicSyncTeal.copy(alpha = 0.45f)
+                                            else DemonicBorder,
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .clickable(enabled = uiState.isHost) {
+                                            if (uiState.isHost) {
+                                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                                val nextState = !isRoomPublic
+                                                viewModel.setRoomVisibility(nextState)
+                                                Toast.makeText(
+                                                    context,
+                                                    if (nextState) "Room is now PUBLIC 🌐 (Visible in Discover)"
+                                                    else "Room is now PRIVATE 🔒 (Hidden from Discover)",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        }
+                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = if (isRoomPublic) "🌐 PUBLIC" else "🔒 PRIVATE",
+                                        color = if (isRoomPublic) DemonicSyncTeal else DemonicTextMuted,
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                             Text(
                                 text = if (uiState.isHost) "Room Master" else "Demonic Audio Sync",
@@ -716,6 +756,38 @@ fun RoomScreen(
                                         showSleepTimerDialog = true
                                     }
                                 )
+                                if (uiState.isHost) {
+                                    val isRoomPublic = uiState.room?.isPublic ?: true
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                if (isRoomPublic) "Make Room Private 🔒" else "Make Room Public 🌐",
+                                                color = DemonicTextPrimary,
+                                                fontSize = 13.sp
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = if (isRoomPublic) Icons.Default.Lock else Icons.Default.Public,
+                                                contentDescription = null,
+                                                tint = if (isRoomPublic) DemonicTextMuted else DemonicSyncTeal,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        onClick = {
+                                            showHeaderMenu = false
+                                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                            val nextState = !isRoomPublic
+                                            viewModel.setRoomVisibility(nextState)
+                                            Toast.makeText(
+                                                context,
+                                                if (nextState) "Room is now PUBLIC 🌐 (Visible in Discover)"
+                                                else "Room is now PRIVATE 🔒 (Hidden from Discover)",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    )
+                                }
                                 DropdownMenuItem(
                                     text = { Text("Themes & Special FX 🎨", color = currentTheme.primaryColor, fontSize = 13.sp, fontWeight = FontWeight.Bold) },
                                     leadingIcon = {

@@ -810,6 +810,20 @@ class RoomViewModel @Inject constructor(
         }
     }
 
+    fun setRoomVisibility(isPublic: Boolean) {
+        if (!_uiState.value.isHost) return
+        viewModelScope.launch {
+            try {
+                _uiState.value.room?.let { current ->
+                    _uiState.value = _uiState.value.copy(room = current.copy(isPublic = isPublic))
+                }
+                roomRepository.updateRoomVisibility(roomCode, isPublic)
+            } catch (e: Exception) {
+                android.util.Log.e("DemonicSync", "Error updating room visibility: ${e.message}")
+            }
+        }
+    }
+
     fun forceSyncWithHost() {
         viewModelScope.launch {
             val room = _uiState.value.room ?: return@launch

@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -105,6 +107,7 @@ fun HomeScreen(
 
     var clipboardYoutubeVideoId by remember { mutableStateOf<String?>(null) }
     var dismissedClipboardVideoId by rememberSaveable { mutableStateOf("") }
+    var isPublicRoom by rememberSaveable { mutableStateOf(true) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
@@ -295,7 +298,7 @@ fun HomeScreen(
                     canControlPlayback = true,
                     onPlayNow = {
                         view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                        viewModel.createRoom(initialVideoId = vid) { code ->
+                        viewModel.createRoom(initialVideoId = vid, isPublic = isPublicRoom) { code ->
                             onNavigateToRoom(code)
                         }
                         dismissedClipboardVideoId = vid
@@ -303,7 +306,7 @@ fun HomeScreen(
                     },
                     onAddToQueue = {
                         view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                        viewModel.createRoom(initialVideoId = vid) { code ->
+                        viewModel.createRoom(initialVideoId = vid, isPublic = isPublicRoom) { code ->
                             onNavigateToRoom(code)
                         }
                         dismissedClipboardVideoId = vid
@@ -399,14 +402,94 @@ fun HomeScreen(
                     lineHeight = 18.sp
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Public Room Toggle / Option (Default: Checked / Ticked)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (isPublicRoom) DemonicCrimson.copy(alpha = 0.08f)
+                            else Color(0xFF161220)
+                        )
+                        .border(
+                            1.dp,
+                            if (isPublicRoom) DemonicCrimson.copy(alpha = 0.35f)
+                            else DemonicBorder,
+                            RoundedCornerShape(12.dp)
+                        )
+                        .clickable {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            isPublicRoom = !isPublicRoom
+                        }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = isPublicRoom,
+                        onCheckedChange = {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            isPublicRoom = it
+                        },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = DemonicCrimson,
+                            uncheckedColor = DemonicTextMuted,
+                            checkmarkColor = Color.White
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (isPublicRoom) "Public Room" else "Private Room",
+                                color = if (isPublicRoom) DemonicTextPrimary else DemonicTextMuted,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(
+                                        if (isPublicRoom) DemonicCrimson.copy(alpha = 0.2f)
+                                        else DemonicSurfaceVariant
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = if (isPublicRoom) "🌐 DISCOVERABLE" else "🔒 INVITE ONLY",
+                                    fontSize = 9.sp,
+                                    color = if (isPublicRoom) DemonicCrimson else DemonicTextMuted,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = if (isPublicRoom) {
+                                "Visible in Discover tab so anyone can find and join"
+                            } else {
+                                "Hidden from Discover. Only people with your 6-digit code can join"
+                            },
+                            color = DemonicTextSecondary,
+                            fontSize = 11.5.sp,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
 
                 DemonicButton(
-                    text = "Create New Room",
+                    text = if (isPublicRoom) "Create Public Room 🌐" else "Create Private Room 🔒",
                     isLoading = uiState.isCreatingRoom,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
-                        viewModel.createRoom { code ->
+                        viewModel.createRoom(isPublic = isPublicRoom) { code ->
                             onNavigateToRoom(code)
                         }
                     }

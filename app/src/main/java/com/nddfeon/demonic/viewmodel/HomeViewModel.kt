@@ -73,11 +73,11 @@ class HomeViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(roomCodeInput = filtered, errorMessage = null)
     }
 
-    fun createRoom(initialVideoId: String = "", onRoomCreated: (String) -> Unit) {
+    fun createRoom(initialVideoId: String = "", isPublic: Boolean = true, onRoomCreated: (String) -> Unit) {
         val user = getEffectiveUser()
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreatingRoom = true, errorMessage = null)
-            val result = roomRepository.createRoom(user, initialVideoId)
+            val result = roomRepository.createRoom(user, initialVideoId, isPublic)
             result.onSuccess { code ->
                 recentRoomsManager.addRoom(code, isHost = true)
                 _uiState.value = _uiState.value.copy(isCreatingRoom = false)

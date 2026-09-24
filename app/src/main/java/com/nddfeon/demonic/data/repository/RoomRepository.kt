@@ -38,7 +38,8 @@ interface RoomRepository {
     val serverTimeOffsetMs: StateFlow<Long>
     fun getServerNowMs(): Long
 
-    suspend fun createRoom(user: UserAccount, initialVideoId: String = ""): Result<String>
+    suspend fun createRoom(user: UserAccount, initialVideoId: String = "", isPublic: Boolean = true): Result<String>
+    suspend fun updateRoomVisibility(roomCode: String, isPublic: Boolean): Result<Unit>
     suspend fun joinRoom(roomCode: String, user: UserAccount): Result<Room>
     suspend fun leaveRoom(roomCode: String, uid: String)
 
@@ -182,7 +183,7 @@ class FirebaseRoomRepository @Inject constructor(
         }
         localPublicRooms.value = list
     }
-    override suspend fun createRoom(user: UserAccount, initialVideoId: String): Result<String> {
+    override suspend fun createRoom(user: UserAccount, initialVideoId: String, isPublic: Boolean): Result<String> {
         purgeExpiredRooms()
         var roomCode = ""
         var attempts = 0
@@ -211,7 +212,7 @@ class FirebaseRoomRepository @Inject constructor(
             position = 0.0,
             updatedAt = now,
             videoTitle = if (initialVideoId.isNotEmpty()) "Synchronized Playback" else "",
-            isPublic = true,
+            isPublic = isPublic,
             memberCount = 1
         )
 
@@ -237,7 +238,7 @@ class FirebaseRoomRepository @Inject constructor(
                     "position" to 0.0,
                     "updatedAt" to ServerValue.TIMESTAMP,
                     "videoTitle" to (if (initialVideoId.isNotEmpty()) "Synchronized Playback" else ""),
-                    "isPublic" to true,
+                    "isPublic" to isPublic,
                     "theme" to "CYBER_NEON",
                     "visualizerStyle" to "CIRCULAR"
                 )
@@ -745,7 +746,7 @@ class FirebaseRoomRepository @Inject constructor(
                                 position = position,
                                 updatedAt = updatedAt,
                                 videoTitle = videoTitle,
-                                isPublic = true,
+                                isPublic = isPublic,
                                 memberCount = memberCount
                             )
                         )
@@ -764,6 +765,22 @@ class FirebaseRoomRepository @Inject constructor(
         }
 
         return merge(localPublicRooms, firebaseFlow)
+    }
+
+    override suspend fun updateRoomVisibility(roomCode: String, isPublic: Boolean): Result<Unit> {
+        val upperCode = roomCode.trim().uppercase()
+        val current = localRooms[upperCode]?.value
+        if (current != null) {
+            localRooms[upperCode]?.value = current.copy(isPublic = isPublic)
+        }
+        updatePublicRoomsList()
+
+        return try {
+            database.getReference("rooms").child(upperCode).child("isPublic").setValue(isPublic).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     override suspend fun updatePlaybackState(
