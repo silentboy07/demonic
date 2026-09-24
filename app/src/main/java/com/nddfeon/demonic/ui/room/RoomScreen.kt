@@ -131,6 +131,7 @@ import com.nddfeon.demonic.ui.components.TypingIndicatorBubble
 import com.nddfeon.demonic.ui.components.VinylDisc
 import com.nddfeon.demonic.ui.components.NowPlayingTrackBanner
 import com.nddfeon.demonic.ui.components.LiveEqualizerBars
+import com.nddfeon.demonic.ui.components.MessageSpamDialog
 import com.nddfeon.demonic.ui.components.RoomQrDialog
 import com.nddfeon.demonic.ui.components.SleepTimerDialog
 import com.nddfeon.demonic.ui.components.YouTubeExplorerSheet
@@ -217,6 +218,7 @@ fun RoomScreen(
     var playerDisplayMode by remember { mutableStateOf(PlayerDisplayMode.VIDEO) }
     var showSearchDialog by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
+    var showSpamDialog by remember { mutableStateOf(false) }
     var showFxStudioSheet by remember { mutableStateOf(false) }
     var showMembersSheet by remember { mutableStateOf(false) }
     var showExplorerSheet by remember { mutableStateOf(false) }
@@ -227,6 +229,13 @@ fun RoomScreen(
     val currentQuality by viewModel.currentQuality.collectAsState()
     var isVerticalFullRatio by remember { mutableStateOf(false) }
     var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
+
+    val currentMember = remember(uiState.members, currentUser?.uid) {
+        uiState.members.find { it.uid == currentUser?.uid }
+    }
+    val isCurrentMemberTimedOut = remember(currentMember?.timedOutUntil) {
+        (currentMember?.timedOutUntil ?: 0L) > System.currentTimeMillis()
+    }
 
     val activity = context as? android.app.Activity
     var isFullscreen by remember { mutableStateOf(false) }
@@ -1563,18 +1572,11 @@ fun RoomScreen(
                     )
                 }
 
-                val currentMember = remember(uiState.members, currentUser?.uid) {
-                    uiState.members.find { it.uid == currentUser?.uid }
-                }
-                val isCurrentMemberTimedOut = remember(currentMember?.timedOutUntil) {
-                    (currentMember?.timedOutUntil ?: 0L) > System.currentTimeMillis()
-                }
-
-                // Reaction bar + Owner FX & Themes Quick Button
+                // Reaction bar + Spam + Owner FX & Themes Quick Button
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 14.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1589,33 +1591,78 @@ fun RoomScreen(
                         }
                     )
 
-                    // Owner FX & Themes Quick Trigger Button in Chat Section
-                    Box(
-                        modifier = Modifier
-                            .height(34.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(currentTheme.primaryColor.copy(alpha = 0.25f), currentTheme.secondaryColor.copy(alpha = 0.2f))
-                                )
-                            )
-                            .border(1.dp, currentTheme.primaryColor, RoundedCornerShape(10.dp))
-                            .clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                                showFxStudioSheet = true
-                            }
-                            .padding(horizontal = 10.dp),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "💖", fontSize = 13.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "FX & Themes",
-                                color = currentTheme.primaryColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Black
-                            )
+                        // Spam Spammer Rapid Blast Button (Placed directly before FX & Themes)
+                        Box(
+                            modifier = Modifier
+                                .height(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (uiState.isBlasting) {
+                                        Brush.horizontalGradient(
+                                            listOf(Color(0xFFFF1744), Color(0xFFD50000))
+                                        )
+                                    } else {
+                                        Brush.horizontalGradient(
+                                            listOf(Color(0xFFFF5722).copy(alpha = 0.25f), Color(0xFFFF9800).copy(alpha = 0.2f))
+                                        )
+                                    }
+                                )
+                                .border(
+                                    1.dp,
+                                    if (uiState.isBlasting) Color(0xFFFF1744) else Color(0xFFFF5722).copy(alpha = 0.7f),
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                    showSpamDialog = true
+                                }
+                                .padding(horizontal = 9.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = if (uiState.isBlasting) "💣" else "⚡", fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = if (uiState.isBlasting) "${uiState.blastSent}/${uiState.blastTotal}" else "Spam",
+                                    color = if (uiState.isBlasting) Color.White else Color(0xFFFF8A65),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                        }
+
+                        // Owner FX & Themes Quick Trigger Button in Chat Section
+                        Box(
+                            modifier = Modifier
+                                .height(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(currentTheme.primaryColor.copy(alpha = 0.25f), currentTheme.secondaryColor.copy(alpha = 0.2f))
+                                    )
+                                )
+                                .border(1.dp, currentTheme.primaryColor, RoundedCornerShape(10.dp))
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                    showFxStudioSheet = true
+                                }
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "💖", fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "FX & Themes",
+                                    color = currentTheme.primaryColor,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
                         }
                     }
                 }
@@ -1800,6 +1847,23 @@ fun RoomScreen(
                 RoomQrDialog(
                     roomCode = uiState.roomCode,
                     onDismiss = { showQrDialog = false }
+                )
+            }
+
+            // Message Spam / Rapid Blast Dialog (Max 100)
+            if (showSpamDialog) {
+                MessageSpamDialog(
+                    isBlasting = uiState.isBlasting,
+                    blastSent = uiState.blastSent,
+                    blastTotal = uiState.blastTotal,
+                    isTimedOut = isCurrentMemberTimedOut,
+                    onStartBlast = { text, count ->
+                        viewModel.blastMessages(text, count)
+                    },
+                    onStopBlast = {
+                        viewModel.stopBlast()
+                    },
+                    onDismiss = { showSpamDialog = false }
                 )
             }
 

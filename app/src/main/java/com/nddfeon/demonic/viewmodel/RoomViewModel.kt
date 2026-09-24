@@ -56,7 +56,10 @@ data class RoomUiState(
     val visualizerStyle: VisualizerStylePreset = VisualizerStylePreset.CIRCULAR,
     val activeSpecialEffect: RoomSpecialEffect? = null,
     val isMutedLocally: Boolean = false,
-    val isAfkMode: Boolean = false
+    val isAfkMode: Boolean = false,
+    val isBlasting: Boolean = false,
+    val blastSent: Int = 0,
+    val blastTotal: Int = 0
 )
 
 @HiltViewModel
@@ -78,6 +81,7 @@ class RoomViewModel @Inject constructor(
 
     private var driftMonitoringJob: Job? = null
     private var sleepTimerJob: Job? = null
+    private var blastJob: Job? = null
     private val _sleepTimerMinutes = MutableStateFlow<Int?>(null)
     val sleepTimerMinutes: StateFlow<Int?> = _sleepTimerMinutes.asStateFlow()
 
@@ -764,6 +768,59 @@ class RoomViewModel @Inject constructor(
         }
     }
 
+    fun blastMessages(text: String, count: Int) {
+        val user = getEffectiveUser()
+        val currentMember = _uiState.value.members.find { it.uid == user.uid }
+        if (currentMember != null && currentMember.timedOutUntil > System.currentTimeMillis()) {
+            _uiState.value = _uiState.value.copy(errorMessage = "You are timed out by the host!")
+            return
+        }
+
+        val cleanText = text.trim()
+        if (cleanText.isEmpty()) return
+        val targetCount = count.coerceIn(1, 100)
+
+        val senderRole = when {
+            _uiState.value.isHost -> "HOST"
+            _uiState.value.isDj -> "DJ"
+            else -> "LISTENER"
+        }
+
+        blastJob?.cancel()
+        blastJob = viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isBlasting = true,
+                blastSent = 0,
+                blastTotal = targetCount
+            )
+            try {
+                for (i in 1..targetCount) {
+                    if (!isActive) break
+                    roomRepository.sendMessage(
+                        roomCode = roomCode,
+                        user = user,
+                        text = cleanText,
+                        replyToMessageId = "",
+                        replyToSenderName = "",
+                        replyToText = "",
+                        senderRole = senderRole
+                    )
+                    _uiState.value = _uiState.value.copy(blastSent = i)
+                    delay(65L)
+                }
+            } catch (_: Exception) {
+            } finally {
+                _uiState.value = _uiState.value.copy(isBlasting = false)
+            }
+        }
+    }
+
+    fun stopBlast() {
+        blastJob?.cancel()
+        blastJob = null
+        _uiState.value = _uiState.value.copy(isBlasting = false)
+    }
+
     fun deleteMessage(messageId: String) {
         _uiState.value = _uiState.value.copy(
             messages = _uiState.value.messages.filter { it.id != messageId }
@@ -788,6 +845,7 @@ class RoomViewModel @Inject constructor(
     }
 
     fun leaveRoom() {
+        stopBlast()
         val user = getEffectiveUser()
         viewModelScope.launch {
             roomRepository.leaveRoom(roomCode, user.uid)
@@ -795,6 +853,7 @@ class RoomViewModel @Inject constructor(
     }
 
     fun deleteRoom() {
+        stopBlast()
         viewModelScope.launch {
             try {
                 playerManager.pause()

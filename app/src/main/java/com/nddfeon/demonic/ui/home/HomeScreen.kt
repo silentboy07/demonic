@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -141,14 +143,21 @@ fun HomeScreen(
 
     val scrollState = rememberScrollState()
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(DemonicBackground)
-            .verticalScroll(scrollState)
-            .padding(horizontal = 20.dp, vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp)
+                .padding(top = 16.dp, bottom = if (isAdsEnabled) 80.dp else 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
         // User Profile Header
         Row(
             modifier = Modifier
@@ -835,12 +844,6 @@ fun HomeScreen(
             }
         }
 
-        // Non-intrusive Banner Ad slot (Controlled by OwnerConfigManager)
-        DemonicBannerAd(
-            isAdsEnabled = isAdsEnabled,
-            modifier = Modifier.padding(top = 16.dp)
-        )
-
         uiState.errorMessage?.let { error ->
             Spacer(modifier = Modifier.height(18.dp))
             Text(
@@ -851,6 +854,28 @@ fun HomeScreen(
             )
         }
     }
+
+    // Locked / Pinned Banner Ad slot at bottom of screen
+    if (isAdsEnabled) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(DemonicBackground.copy(alpha = 0.96f))
+                .border(
+                    width = 0.5.dp,
+                    color = DemonicBorder.copy(alpha = 0.35f)
+                )
+                .navigationBarsPadding()
+                .padding(vertical = 4.dp, horizontal = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            DemonicBannerAd(
+                isAdsEnabled = true
+            )
+        }
+    }
+}
 
     if (showOwnerPanel) {
         OwnerControlBottomSheet(
