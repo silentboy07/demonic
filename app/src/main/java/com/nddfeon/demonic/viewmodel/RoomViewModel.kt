@@ -427,14 +427,10 @@ class RoomViewModel @Inject constructor(
         viewModelScope.launch {
             roomRepository.observeMessages(roomCode).collect { message ->
                 val current = _uiState.value.messages
-                val isDuplicate = current.any { existing ->
-                    existing.id == message.id ||
-                    (existing.senderId == message.senderId &&
-                     existing.text == message.text &&
-                     kotlin.math.abs(existing.sentAt - message.sentAt) < 4000L)
-                }
+                val isDuplicate = current.any { existing -> existing.id == message.id }
                 if (!isDuplicate) {
-                    _uiState.value = _uiState.value.copy(messages = current + message)
+                    val updated = (current + message).takeLast(150)
+                    _uiState.value = _uiState.value.copy(messages = updated)
                 }
             }
         }
@@ -796,17 +792,21 @@ class RoomViewModel @Inject constructor(
             try {
                 for (i in 1..targetCount) {
                     if (!isActive) break
-                    roomRepository.sendMessage(
-                        roomCode = roomCode,
-                        user = user,
-                        text = cleanText,
-                        replyToMessageId = "",
-                        replyToSenderName = "",
-                        replyToText = "",
-                        senderRole = senderRole
-                    )
+                    try {
+                        roomRepository.sendMessage(
+                            roomCode = roomCode,
+                            user = user,
+                            text = cleanText,
+                            replyToMessageId = "",
+                            replyToSenderName = "",
+                            replyToText = "",
+                            senderRole = senderRole
+                        )
+                    } catch (e: Exception) {
+                        android.util.Log.e("DemonicBlast", "Failed blast message #$i: ${e.message}")
+                    }
                     _uiState.value = _uiState.value.copy(blastSent = i)
-                    delay(65L)
+                    delay(70L)
                 }
             } catch (_: Exception) {
             } finally {

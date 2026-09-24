@@ -328,8 +328,12 @@ fun RoomScreen(
     }
 
     LaunchedEffect(uiState.messages.size) {
-        if (uiState.messages.isNotEmpty() && isScrolledToBottom) {
-            listState.animateScrollToItem(uiState.messages.size - 1)
+        if (uiState.messages.isNotEmpty()) {
+            if (uiState.isBlasting) {
+                listState.scrollToItem(uiState.messages.size - 1)
+            } else if (isScrolledToBottom) {
+                listState.animateScrollToItem(uiState.messages.size - 1)
+            }
         }
     }
 
@@ -1858,10 +1862,13 @@ fun RoomScreen(
                     blastTotal = uiState.blastTotal,
                     isTimedOut = isCurrentMemberTimedOut,
                     onStartBlast = { text, count ->
+                        showSpamDialog = false
                         viewModel.blastMessages(text, count)
+                        Toast.makeText(context, "💣 Blasting $count messages in chat! Tap 💣 to stop.", Toast.LENGTH_SHORT).show()
                     },
                     onStopBlast = {
                         viewModel.stopBlast()
+                        Toast.makeText(context, "🛑 Blast stopped!", Toast.LENGTH_SHORT).show()
                     },
                     onDismiss = { showSpamDialog = false }
                 )

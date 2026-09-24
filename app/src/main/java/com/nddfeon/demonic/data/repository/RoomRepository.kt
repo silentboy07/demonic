@@ -166,7 +166,7 @@ class FirebaseRoomRepository @Inject constructor(
         localMembers.getOrPut(code) { MutableStateFlow(emptyList()) }
 
     private fun getOrCreateLocalMessages(code: String): MutableSharedFlow<ChatMessage> =
-        localMessages.getOrPut(code) { MutableSharedFlow(replay = 20) }
+        localMessages.getOrPut(code) { MutableSharedFlow(replay = 20, extraBufferCapacity = 150) }
 
     private fun getOrCreateLocalTyping(code: String): MutableStateFlow<List<String>> =
         localTyping.getOrPut(code) { MutableStateFlow(emptyList()) }
@@ -1009,8 +1009,6 @@ class FirebaseRoomRepository @Inject constructor(
         scope.launch {
             try {
                 val roomRef = database.getReference("rooms").child(upperCode)
-                roomRef.child("updatedAt").setValue(ServerValue.TIMESTAMP)
-
                 val messagesRef = roomRef.child("messages")
                 val msgRef = messagesRef.child(msgId)
                 val msgData = hashMapOf<String, Any>(
@@ -1027,19 +1025,23 @@ class FirebaseRoomRepository @Inject constructor(
                 )
                 msgRef.setValue(msgData).await()
 
-                // Auto-Cap cleanup: if messages exceed 100, prune oldest down to 80
-                val countSnapshot = messagesRef.get().await()
-                if (countSnapshot.childrenCount > 100) {
-                    val pruneCount = (countSnapshot.childrenCount - 80).toInt()
-                    var pruned = 0
-                    for (child in countSnapshot.children) {
-                        if (pruned < pruneCount) {
-                            child.ref.removeValue()
-                            pruned++
-                        } else break
+                // Occasional cleanup: only 1 in 30 messages runs cleanup to avoid bottleneck during spam
+                if ((1..30).random() == 1) {
+                    val countSnapshot = messagesRef.get().await()
+                    if (countSnapshot.childrenCount > 100) {
+                        val pruneCount = (countSnapshot.childrenCount - 80).toInt()
+                        var pruned = 0
+                        for (child in countSnapshot.children) {
+                            if (pruned < pruneCount) {
+                                child.ref.removeValue()
+                                pruned++
+                            } else break
+                        }
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                android.util.Log.e("DemonicSync", "Failed to send message: ${e.message}")
+            }
         }
 
         return Result.success(Unit)
