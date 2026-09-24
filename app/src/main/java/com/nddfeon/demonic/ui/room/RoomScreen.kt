@@ -30,8 +30,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -307,7 +309,7 @@ fun RoomScreen(
             if (totalItems == 0) true
             else {
                 val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                lastVisibleIndex >= totalItems - 2
+                lastVisibleIndex >= totalItems - 1
             }
         }
     }
@@ -1505,13 +1507,21 @@ fun RoomScreen(
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = 36.dp),
                             reverseLayout = false
                         ) {
-                            items(uiState.messages, key = { it.id }) { message ->
+                            itemsIndexed(uiState.messages, key = { _, it -> it.id }) { index, message ->
                                 val isOwnMessage = (message.senderId == currentUser?.uid)
+                                val prevMessage = if (index > 0) uiState.messages[index - 1] else null
+                                val showSenderHeader = prevMessage == null ||
+                                    prevMessage.senderId != message.senderId ||
+                                    prevMessage.senderId == "system" ||
+                                    (message.sentAt - prevMessage.sentAt) > 90_000L
+
                                 ChatMessageItem(
                                     message = message,
                                     isOwnMessage = isOwnMessage,
+                                    showSenderHeader = showSenderHeader,
                                     isHost = (message.senderId == uiState.room?.hostId),
                                     isDj = (message.senderId == uiState.room?.djId),
                                     theme = currentTheme,
@@ -1520,7 +1530,7 @@ fun RoomScreen(
                             }
                         }
 
-                        // Floating Scroll-To-Bottom Pill Button
+                        // Floating Scroll-To-Bottom Pill Button (Centered so it never overlaps right-aligned user messages!)
                         ScrollToBottomFloatingButton(
                             visible = !isScrolledToBottom,
                             theme = currentTheme,
@@ -1530,8 +1540,8 @@ fun RoomScreen(
                                 }
                             },
                             modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(bottom = 8.dp, end = 6.dp)
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 6.dp)
                         )
                     }
                 }

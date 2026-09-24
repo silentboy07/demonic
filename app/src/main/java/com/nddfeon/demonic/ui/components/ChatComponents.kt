@@ -104,36 +104,36 @@ fun ChatRoleBadge(
         "HOST" -> {
             Box(
                 modifier = modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF382A05))
-                    .border(0.8.dp, Color(0xFFFFB300), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 6.dp, vertical = 1.dp),
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF382A05).copy(alpha = 0.85f))
+                    .border(0.6.dp, Color(0xFFFFB300), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 0.5.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "👑 HOST",
                     color = Color(0xFFFFC107),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 0.5.sp
+                    fontSize = 7.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.3.sp
                 )
             }
         }
         "DJ" -> {
             Box(
                 modifier = modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF26123D))
-                    .border(0.8.dp, DemonicViolet, RoundedCornerShape(6.dp))
-                    .padding(horizontal = 6.dp, vertical = 1.dp),
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF26123D).copy(alpha = 0.85f))
+                    .border(0.6.dp, DemonicViolet, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 0.5.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "🎧 DJ",
                     color = Color(0xFFD4B0FF),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 0.5.sp
+                    fontSize = 7.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.3.sp
                 )
             }
         }
@@ -194,6 +194,7 @@ fun QuotedReplyInBubble(
 fun ChatMessageItem(
     message: ChatMessage,
     isOwnMessage: Boolean,
+    showSenderHeader: Boolean = true,
     isHost: Boolean = false,
     isDj: Boolean = false,
     theme: RoomThemePreset = RoomThemePreset.CYBER_NEON,
@@ -210,20 +211,20 @@ fun ChatMessageItem(
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .padding(vertical = 2.5.dp),
             contentAlignment = Alignment.Center
         ) {
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF1E1928))
-                    .border(1.dp, DemonicBorder, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 14.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF1E1928).copy(alpha = 0.85f))
+                    .border(0.8.dp, DemonicBorder, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 11.dp, vertical = 3.dp)
             ) {
                 Text(
                     text = message.text,
                     color = DemonicTextMuted,
-                    fontSize = 11.sp,
+                    fontSize = 10.5.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -240,15 +241,16 @@ fun ChatMessageItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = if (showSenderHeader) 2.5.dp else 1.dp),
         horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Bottom
     ) {
-            if (!isOwnMessage) {
+        if (!isOwnMessage) {
+            if (showSenderHeader) {
                 // Sender Avatar
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(26.dp)
                         .clip(CircleShape)
                         .background(theme.surfaceColor)
                         .border(1.dp, theme.borderColor, CircleShape),
@@ -262,109 +264,121 @@ fun ChatMessageItem(
                                 .build(),
                             contentDescription = message.senderName,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     } else {
                         Text(
                             text = message.senderName.firstOrNull()?.uppercase() ?: "D",
                             color = DemonicTextPrimary,
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+            } else {
+                Spacer(modifier = Modifier.width(26.dp))
             }
+            Spacer(modifier = Modifier.width(6.dp))
+        }
 
-            // Message Bubble Column
-            Column(
-                horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start,
-                modifier = Modifier.widthIn(max = 290.dp)
-            ) {
-                // Header (Sender Name + Role Badge)
-                if (!isOwnMessage || effectiveRole.isNotEmpty()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start,
-                        modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 2.dp)
-                    ) {
-                        if (!isOwnMessage) {
-                            Text(
-                                text = message.senderName,
-                                color = theme.secondaryColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        if (effectiveRole.isNotEmpty()) {
-                            if (!isOwnMessage) Spacer(modifier = Modifier.width(6.dp))
-                            ChatRoleBadge(role = effectiveRole)
-                        }
+        // Message Bubble Column
+        Column(
+            horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start,
+            modifier = Modifier.widthIn(max = 285.dp)
+        ) {
+            // Header (Sender Name + Compact Role Badge) - only displayed when showSenderHeader is true!
+            if (showSenderHeader && (!isOwnMessage || effectiveRole.isNotEmpty())) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start,
+                    modifier = Modifier.padding(start = 3.dp, end = 3.dp, bottom = 1.5.dp)
+                ) {
+                    if (!isOwnMessage) {
+                        Text(
+                            text = message.senderName,
+                            color = theme.secondaryColor,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (effectiveRole.isNotEmpty()) {
+                        if (!isOwnMessage) Spacer(modifier = Modifier.width(4.dp))
+                        ChatRoleBadge(role = effectiveRole)
                     }
                 }
+            }
 
-                val bubbleShape = if (isOwnMessage) {
-                    RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
-                } else {
-                    RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
-                }
+            val bubbleShape = if (isOwnMessage) {
+                RoundedCornerShape(14.dp, 14.dp, 3.dp, 14.dp)
+            } else {
+                RoundedCornerShape(14.dp, 14.dp, 14.dp, 3.dp)
+            }
 
-                Box(
-                    modifier = Modifier
-                        .clip(bubbleShape)
-                        .background(
-                            if (isOwnMessage) {
-                                Brush.horizontalGradient(theme.chatOwnGradient)
-                            } else {
-                                Brush.linearGradient(listOf(theme.surfaceVariantColor, theme.surfaceColor))
-                            }
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = if (isOwnMessage) theme.primaryColor.copy(alpha = 0.55f) else theme.borderColor,
-                            shape = bubbleShape
-                        )
-                        .combinedClickable(
-                            onClick = {},
-                            onLongClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                onLongClick?.invoke(message)
-                            }
-                        )
-                        .padding(horizontal = 14.dp, vertical = 9.dp)
-                ) {
-                    Column {
-                        // Quoted Reply Preview
-                        if (message.replyToText.isNotBlank()) {
-                            QuotedReplyInBubble(
-                                senderName = message.replyToSenderName.ifBlank { "User" },
-                                text = message.replyToText,
-                                isOwnMessage = isOwnMessage,
-                                theme = theme,
-                                modifier = Modifier.padding(bottom = 6.dp)
-                            )
+            Box(
+                modifier = Modifier
+                    .clip(bubbleShape)
+                    .background(
+                        if (isOwnMessage) {
+                            Brush.horizontalGradient(theme.chatOwnGradient)
+                        } else {
+                            Brush.linearGradient(listOf(theme.surfaceVariantColor, theme.surfaceColor))
                         }
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = if (isOwnMessage) theme.primaryColor.copy(alpha = 0.55f) else theme.borderColor,
+                        shape = bubbleShape
+                    )
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            onLongClick?.invoke(message)
+                        }
+                    )
+                    .padding(horizontal = 10.dp, vertical = 5.5.dp)
+            ) {
+                Column {
+                    // Quoted Reply Preview
+                    if (message.replyToText.isNotBlank()) {
+                        QuotedReplyInBubble(
+                            senderName = message.replyToSenderName.ifBlank { "User" },
+                            text = message.replyToText,
+                            isOwnMessage = isOwnMessage,
+                            theme = theme,
+                            modifier = Modifier.padding(bottom = 3.dp)
+                        )
+                    }
 
-                        // Message Text
+                    // Message Text + Inline / Bottom-End Timestamp
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.End
+                    ) {
                         Text(
                             text = message.text,
                             color = DemonicTextPrimary,
-                            fontSize = 14.sp,
-                            lineHeight = 19.sp
+                            fontSize = 13.5.sp,
+                            lineHeight = 18.sp,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
-                    }
-                }
 
-                if (formattedTime.isNotEmpty()) {
-                    Text(
-                        text = formattedTime,
-                        color = DemonicTextMuted,
-                        fontSize = 10.sp,
-                        modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
-                    )
+                        if (formattedTime.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = formattedTime,
+                                color = if (isOwnMessage) Color.White.copy(alpha = 0.65f) else DemonicTextMuted.copy(alpha = 0.75f),
+                                fontSize = 9.sp,
+                                modifier = Modifier.padding(bottom = 0.5.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
 }
 
 @Composable
@@ -749,15 +763,15 @@ fun ScrollToBottomFloatingButton(
     ) {
         Box(
             modifier = Modifier
-                .shadow(10.dp, CircleShape, spotColor = theme.primaryColor)
-                .size(38.dp)
+                .shadow(6.dp, CircleShape, spotColor = theme.primaryColor)
+                .size(31.dp)
                 .clip(CircleShape)
                 .background(
                     Brush.verticalGradient(
-                        listOf(theme.surfaceVariantColor, theme.surfaceColor)
+                        listOf(theme.surfaceVariantColor.copy(alpha = 0.95f), theme.surfaceColor.copy(alpha = 0.95f))
                     )
                 )
-                .border(1.dp, theme.primaryColor.copy(alpha = 0.8f), CircleShape)
+                .border(1.dp, theme.primaryColor.copy(alpha = 0.75f), CircleShape)
                 .clickable {
                     view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     onClick()
@@ -768,7 +782,7 @@ fun ScrollToBottomFloatingButton(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = "Scroll to bottom",
                 tint = DemonicTextPrimary,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(17.dp)
             )
         }
     }
